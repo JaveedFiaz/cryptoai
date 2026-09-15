@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Scalper Pro [v7] - MEXC Real-Time Trading Terminal</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Crypto Scalper">
+  <meta name="theme-color" content="#0b0e14">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- TradingView Official Advanced Real-Time Charting Library -->
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+  <!-- TradingView Lightweight Charts CDN -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+
+  <!-- ========================================================================
+       TOP HEADER BAR
+       ======================================================================== -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-badge">
+        <div class="pulse-dot"></div>
+        <span>CRYPTO SCALPER PRO</span>
+      </div>
+      <span id="mode-badge" class="mexc-live-badge" title="Active Execution Mode: MEXC Live Futures">MEXC LIVE</span>
+    </div>
+
+    <!-- Pair & Timeframe Selector -->
+    <div class="market-nav">
+      <div class="pair-pills">
+        <button class="pair-pill active" data-pair="BTCUSDT">BTC</button>
+        <button class="pair-pill" data-pair="ETHUSDT">ETH</button>
+        <button class="pair-pill" data-pair="SOLUSDT">SOL</button>
+        <button class="pair-pill" data-pair="BNBUSDT">BNB</button>
+        <button class="pair-pill" data-pair="XRPUSDT">XRP</button>
+        <button class="pair-pill" data-pair="DOGEUSDT">DOGE</button>
+      </div>
+      <input type="text" id="custom-pair-input" class="custom-pair-input" placeholder="+ PAIR" title="Enter any symbol, e.g. PEPE, SUI, ADA">
+
+      <div class="tf-pills">
+        <button class="tf-pill active" data-tf="1m">1m</button>
+        <button class="tf-pill" data-tf="3m">3m</button>
+        <button class="tf-pill" data-tf="5m">5m</button>
+        <button class="tf-pill" data-tf="15m">15m</button>
+        <button class="tf-pill" data-tf="30m">30m</button>
+        <button class="tf-pill" data-tf="1h">1h</button>
+        <button class="tf-pill" data-tf="4h">4h</button>
+        <button class="tf-pill" data-tf="1d">1D</button>
+      </div>
+    </div>
+
+    <!-- Live 24h Ticker & Market Stats (Binance / MEXC Derivatives Bar) -->
+    <div class="live-ticker-bar">
+      <div class="ticker-item main">
+        <span id="ticker-price" class="ticker-price">---.--</span>
+        <span id="ticker-change" class="ticker-change">+0.00%</span>
+      </div>
+      <div class="ticker-item stats-sub">
+        <span class="stat-lbl">Mark:</span> <span id="ticker-mark" class="stat-val">---</span>
+        <span class="stat-lbl">Index:</span> <span id="ticker-index" class="stat-val">---</span>
+      </div>
+      <div class="ticker-item stats-sub">
+        <span class="stat-lbl">24h High:</span> <span id="ticker-high" class="stat-val">---</span>
+        <span class="stat-lbl">24h Low:</span> <span id="ticker-low" class="stat-val">---</span>
+      </div>
+      <div class="ticker-item stats-sub">
+        <span class="stat-lbl">24h Vol:</span> <span id="ticker-vol" class="stat-val">---</span>
+        <span class="stat-lbl">Funding / Countdown:</span> <span id="ticker-funding" class="stat-val" style="color:var(--color-cyan);">0.0100% / 03:42:15</span>
+      </div>
+      <span id="candle-timer" class="candle-timer">⏱ 0:00</span>
+    </div>
+
+    <!-- Header Live Account Summary & Controls -->
+    <div class="header-account-bar">
+      <div class="acc-chip" title="Wallet Equity (Balance + Unrealized PnL)">
+        <span class="chip-title">Equity</span>
+        <span id="header-equity" class="chip-val">$10,000.00</span>
+      </div>
+      <div class="acc-chip" title="Available for new positions">
+        <span class="chip-title">Available</span>
+        <span id="header-avail" class="chip-val">$10,000.00</span>
+      </div>
+      <div class="acc-chip" title="Total Used Margin / Equity">
+        <span class="chip-title">Margin Ratio</span>
+        <span id="header-margin-ratio" class="chip-val">0.0%</span>
+      </div>
+      <button id="header-sync-btn" class="ctrl-btn sync-btn" title="Sync MEXC Account Balance & Open Positions">🔄 Sync</button>
+    </div>
+
+    <!-- Controls, Auto-Trading & Institutional Emergency Safeguards -->
+    <div class="controls-section">
+      <button id="fullscreen-btn" class="ctrl-btn fullscreen-btn" title="Toggle Fullscreen Mode (F11)">⛶ Fullscreen</button>
+      <button id="autotrade-toggle-btn" class="ctrl-btn autotrade-btn off" title="MEXC Real Account Auto-Trading">🤖 AUTO: OFF</button>
+      <button id="autotrade-score-btn" class="ctrl-btn score-select-btn" title="Select Minimum Confluence Score for MEXC Auto-Trade (Default: 85/100)">🎯 Score: 85+ ▾</button>
+      <button id="emergency-stop-btn" class="ctrl-btn emergency-btn" title="Emergency Stop Kill Switch">🛑 STOP</button>
+      <button id="close-all-btn" class="ctrl-btn close-all-btn" title="Market Close All Open Positions">⚡ CLOSE ALL</button>
+      <button id="mexc-modal-btn" class="ctrl-btn mexc-btn" title="MEXC Real Account Auto-Trading Setup">🏦 MEXC API</button>
+      <button id="alerts-modal-btn" class="ctrl-btn alerts-btn" title="Discord, Phone Push & Telegram Alerts">🔔 Alerts</button>
+      <button id="mobile-qr-btn" class="ctrl-btn mobile-btn" title="Direct Mobile Access Link & QR">📱 Mobile</button>
+      <button id="sound-toggle-btn" class="ctrl-btn active" title="Toggle audio chime">🔊</button>
+      <button id="notif-toggle-btn" class="ctrl-btn" title="Toggle browser desktop notifications">🔔</button>
+      <span id="connection-status" class="status-pill offline">CONNECTING...</span>
+      <button id="settings-btn" class="ctrl-btn" title="Configure Scalper Parameters">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       INSTITUTIONAL NAVIGATION SUB-TABS
+       ======================================================================== -->
+  <nav class="terminal-subnav">
+    <button class="subnav-tab active" data-tab="terminal">📈 Terminal &amp; Chart</button>
+    <button class="subnav-tab" data-tab="scanner">🔍 Intraday Scanner</button>
+    <button class="subnav-tab" data-tab="analytics">📊 Performance Analytics</button>
+    <button class="subnav-tab" data-tab="backtest">🧪 Historical Backtest</button>
+    <button class="subnav-tab" data-tab="audit">🛡️ Pre-Flight Audit Logs</button>
+  </nav>
+
+  <!-- ========================================================================
+       HERO ACTIVE TRADE SIGNAL BANNER (CLEAR & INSTANT READ)
+       ======================================================================== -->
+  <div id="hero-signal-bar" class="hero-signal-bar neutral">
+    <div class="hero-signal-left">
+      <div class="hero-status-pulse" id="hero-pulse"></div>
+      <div class="hero-signal-badge" id="hero-badge">⚪ SCANNING</div>
+      <div class="hero-signal-pair" id="hero-pair">BTCUSDT [1m]</div>
+      <div class="hero-signal-summary" id="hero-summary">Analyzing live orderflow &amp; institutional market structure...</div>
+      <div class="hero-reasons-container" id="hero-reasons-box">
+        <span class="reasons-pill" id="hero-reasons-pill">Scanning for 100-point confluence setups...</span>
+      </div>
+    </div>
+    <div class="hero-signal-right" id="hero-levels">
+      <div class="hero-score-100-box" title="100-Point Quantitative Confluence Score">
+        <span class="score-100-num" id="hero-score100">--</span>
+        <span class="score-100-denom">/100</span>
+      </div>
+      <div class="hero-level-chip entry">
+        <span class="chip-label">ENTRY</span>
+        <span class="chip-val" id="hero-entry">---</span>
+      </div>
+      <div class="hero-level-chip sl">
+        <span class="chip-label">STOP LOSS</span>
+        <span class="chip-val" id="hero-sl">---</span>
+      </div>
+      <div class="hero-level-chip tp">
+        <span class="chip-label">TP1 (1R)</span>
+        <span class="chip-val" id="hero-tp1">---</span>
+      </div>
+      <div class="hero-level-chip tp">
+        <span class="chip-label">TP2 (2R)</span>
+        <span class="chip-val" id="hero-tp2">---</span>
+      </div>
+      <div class="hero-level-chip tp">
+        <span class="chip-label">TP3 (3R)</span>
+        <span class="chip-val" id="hero-tp3">---</span>
+      </div>
+      <div class="hero-level-chip score">
+        <span class="chip-label">CONVICTION</span>
+        <span class="chip-val" id="hero-score">---</span>
+      </div>
+      <div class="hero-level-chip rr">
+        <span class="chip-label">R:R</span>
+        <span class="chip-val" id="hero-rr">1:2.0</span>
+      </div>
+      <div class="hero-share-actions">
+        <button id="hero-share-tg-btn" class="hero-share-btn tg" title="Forward Active Signal to Telegram">✈️ TG</button>
+        <button id="hero-share-wa-btn" class="hero-share-btn wa" title="Forward Active Signal to WhatsApp">💬 WA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       TAB PANE 1: TERMINAL & CHART
+       ======================================================================== -->
+  <div id="tab-terminal" class="tab-pane active">
+    <!-- MAIN WORKSPACE: CHART (LEFT) + TRADING DOCK (RIGHT) -->
+    <main class="main-workspace">
+      <div class="chart-wrapper">
+        <div class="chart-indicators-bar">
+          <div class="chart-engine-tabs">
+            <button class="chart-engine-btn active" id="btn-chart-tv" title="Official TradingView Advanced Chart (Full toolbars, add/delete RSI, MACD & all indicators)">📊 TradingView Advanced</button>
+            <button class="chart-engine-btn" id="btn-chart-native" title="Scalper Multi-Indicator Confluence View">⚡ Scalper Indicators</button>
+          </div>
+          <div class="ind-pill-group" id="native-ind-pills" style="display:none;">
+            <button class="ind-pill active" data-ind="ema20">EMA 20</button>
+            <button class="ind-pill active" data-ind="ema50">EMA 50</button>
+            <button class="ind-pill active" data-ind="ema200">EMA 200</button>
+            <button class="ind-pill active" data-ind="vwap">VWAP</button>
+            <button class="ind-pill active" data-ind="volume">Volume</button>
+            <button class="ind-pill active" data-ind="rsi">RSI</button>
+            <button class="ind-pill active" data-ind="macd">MACD</button>
+          </div>
+          <div style="flex:1;"></div>
+          <span class="tv-hint-text" id="tv-hint-text" style="font-size:11px; color:var(--color-cyan); margin-right:8px;">💡 Click <b>"Indicators"</b> on chart to add or delete RSI, MACD & any studies</span>
+          <button id="btn-toggle-hud" class="chart-ctrl-btn" title="Show / Hide Crypto Scalper HUD Banner">👁 HUD</button>
+          <button id="chart-fullscreen-btn" class="chart-ctrl-btn" title="Toggle Fullscreen Chart">⛶ Fullscreen</button>
+          <button id="chart-reset-btn" class="chart-ctrl-btn" title="Auto-scale Chart">🎯 Auto</button>
+        </div>
+
+        <!-- Official TradingView Advanced Real-Time Chart Viewport -->
+        <div id="tv-chart-viewport" style="width:100%; height:100%; flex:1; position:relative;">
+          <div id="tradingview_chart" style="width:100%; height:100%;"></div>
+        </div>
+
+        <!-- Native Scalper Chart Container (Dual view) -->
+        <div id="native-chart-viewport" style="display:none; width:100%; height:100%; flex-direction:column; flex:1;">
+          <div id="chart-container" style="flex:1; min-height:420px;"></div>
+          <div id="rsi-container" class="subchart-pane" style="height:110px; border-top:1px solid #1e222d;"></div>
+          <div id="macd-container" class="subchart-pane" style="height:110px; border-top:1px solid #1e222d;"></div>
+        </div>
+
+      <!-- Live HUD Dashboard (Top-Right of Chart) -->
+      <div class="hud-overlay" id="hud-overlay">
+        <div class="hud-header">
+          <span class="hud-title">CRYPTO SCALPER PRO</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span id="hud-pair-tf" class="hud-pair-tf">BTCUSDT [1m]</span>
+            <button id="btn-close-hud" class="hud-close-btn" title="Hide HUD Banner (re-open with '👁 HUD' in toolbar)">✕</button>
+          </div>
+        </div>
+        <div class="hud-body">
+          <div class="hud-row">
+            <span class="hud-label">Market Regime</span>
+            <span id="hud-regime" class="hud-badge badge-neutral">INITIALIZING</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">200 EMA Trend</span>
+            <span id="hud-trend" class="hud-val">---</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">Momentum (RSI/MACD)</span>
+            <span id="hud-mom" class="hud-val">---</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">Volume Status</span>
+            <span id="hud-vol" class="hud-val">---</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">ADX Trend Strength</span>
+            <span id="hud-adx" class="hud-val">---</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">HTF Trend (5m/15m)</span>
+            <span id="hud-mtf" class="hud-val">---</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">Active Signal</span>
+            <span id="hud-pos" class="hud-val">FLAT (Searching)</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">Signal Strength</span>
+            <span id="hud-strength" class="hud-val">N/A</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">Target Risk/Reward</span>
+            <span id="hud-rr" class="hud-val" style="color:var(--color-gold);">1:2.0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         PROMINENT MEXC-STYLE DEMO TRADING PANEL (ORDER ENTRY DOCK)
+         ====================================================================== -->
+    <aside class="trading-dock" id="trading-dock">
+      <div class="dock-header">
+        <div class="dock-title-row">
+          <span class="dock-title">MEXC FUTURES</span>
+          <span class="margin-mode-badge" title="Isolated margin: Risk is confined to the margin assigned to this position">ISOLATED</span>
+          <button id="leverage-btn" class="leverage-pill-btn" title="Click to change leverage">10x ▾</button>
+        </div>
+      </div>
+
+      <!-- Order Type Tabs (Market / Limit) -->
+      <div class="order-type-tabs">
+        <button class="order-type-tab active" data-type="MARKET">Market</button>
+        <button class="order-type-tab" data-type="LIMIT">Limit</button>
+      </div>
+
+      <div class="dock-body">
+        <!-- Limit Price Input (Only shown on Limit) -->
+        <div class="dock-input-group" id="limit-price-group" style="display:none;">
+          <div class="dock-label-row">
+            <label for="order-limit-price">Order Price</label>
+            <span class="dock-sublabel">USD</span>
+          </div>
+          <div class="dock-input-box">
+            <input type="number" id="order-limit-price" placeholder="0.00" step="any">
+            <span class="dock-unit">USD</span>
+          </div>
+        </div>
+
+        <!-- Quantity Input -->
+        <div class="dock-input-group">
+          <div class="dock-label-row">
+            <label for="order-qty">Quantity</label>
+            <span id="order-qty-label" class="dock-sublabel">Contracts</span>
+          </div>
+          <div class="dock-input-box">
+            <input type="number" id="order-qty" placeholder="0.00" step="any">
+            <span id="order-unit-badge" class="dock-unit">XAU</span>
+          </div>
+        </div>
+
+        <!-- Margin % Quick Buttons -->
+        <div class="percent-pills-row">
+          <button class="pct-btn" data-pct="10">10%</button>
+          <button class="pct-btn" data-pct="25">25%</button>
+          <button class="pct-btn" data-pct="50">50%</button>
+          <button class="pct-btn" data-pct="75">75%</button>
+          <button class="pct-btn" data-pct="100">100%</button>
+        </div>
+
+        <!-- Optional TP / SL Inputs -->
+        <div class="tpsl-collapsible">
+          <div class="tpsl-header">
+            <label class="checkbox-label">
+              <input type="checkbox" id="enable-tpsl-checkbox" checked>
+              <span>Take Profit / Stop Loss</span>
+            </label>
+          </div>
+          <div class="tpsl-body" id="tpsl-inputs-container">
+            <div class="tpsl-input-row">
+              <span class="tpsl-tag tp">TP</span>
+              <input type="number" id="order-tp-input" placeholder="Take Profit Price" step="any">
+            </div>
+            <div class="tpsl-input-row">
+              <span class="tpsl-tag sl">SL</span>
+              <input type="number" id="order-sl-input" placeholder="Stop Loss Price" step="any">
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Calculation & Risk Telemetry -->
+        <div class="order-telemetry-box">
+          <div class="telemetry-row">
+            <span class="t-label">Position Value:</span>
+            <span id="calc-notional" class="t-val">$0.00</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="t-label">Required Margin:</span>
+            <span id="calc-margin" class="t-val">$0.00</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="t-label">Est. Liquidation Price:</span>
+            <span id="calc-liq" class="t-val" style="color:var(--color-orange);">---</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="t-label">Estimated Fee (Taker):</span>
+            <span id="calc-fee" class="t-val">$0.00</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="t-label">Available Margin:</span>
+            <span id="calc-avail" class="t-val" style="color:var(--color-cyan);">$10,000.00</span>
+          </div>
+        </div>
+
+        <!-- Large Dual Action Buttons -->
+        <div class="order-actions-row">
+          <button id="btn-buy-long" class="action-btn btn-buy">
+            <span class="btn-main-txt">BUY / LONG</span>
+            <span id="btn-ask-price" class="btn-sub-txt">Ask: ---</span>
+          </button>
+          <button id="btn-sell-short" class="action-btn btn-sell">
+            <span class="btn-main-txt">SELL / SHORT</span>
+            <span id="btn-bid-price" class="btn-sub-txt">Bid: ---</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ========================================================================
+       BOTTOM PANEL: POSITIONS, OPEN ORDERS, TRADE HISTORY, SIGNALS
+       ======================================================================== -->
+  <section class="bottom-panel">
+    <div class="panel-tabs">
+      <div class="tab-buttons">
+        <button class="tab-btn active" data-tab="tab-positions">
+          Positions <span id="pos-badge-count" class="tab-badge">0</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-orders">
+          Open Orders <span id="orders-badge-count" class="tab-badge">0</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-trades">
+          Trade History
+        </button>
+        <button class="tab-btn" data-tab="tab-signals">
+          ⚡ Confluence Signals
+        </button>
+        <button class="tab-btn" data-tab="tab-confluence">
+          🔍 8-Factor Engine
+        </button>
+      </div>
+      <div class="bottom-panel-status">
+        <span id="target-lines-status" style="color:var(--color-cyan);">🎯 Chart Target Lines: ACTIVE</span>
+        <span>•</span>
+        <span class="margin-tag" style="color:var(--color-gold);">MEXC ISOLATED MARGIN</span>
+        <button id="btn-toggle-bottom-panel" class="panel-collapse-btn" title="Minimize / Expand Table Panel to enlarge chart">
+          <span id="bottom-panel-icon">▾</span> <span id="bottom-panel-lbl">Minimize Panel</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tab-content">
+      <!-- TAB 1: Real-Time Positions Table -->
+      <div id="tab-positions" class="tab-content-panel">
+        <div class="table-responsive">
+          <table class="terminal-table" id="positions-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Quantity</th>
+                <th>Entry Price</th>
+                <th>Mark Price</th>
+                <th>Leverage</th>
+                <th>Margin</th>
+                <th>Liq. Price</th>
+                <th>Unrealized PnL (ROE %)</th>
+                <th>SL / TP</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="positions-tbody">
+              <tr>
+                <td colspan="11" class="empty-cell">No open positions. Ready for auto or manual execution on MEXC.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 2: Open Limit Orders Table -->
+      <div id="tab-orders" class="tab-content-panel" style="display:none;">
+        <div class="table-responsive">
+          <table class="terminal-table" id="orders-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Type</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Leverage</th>
+                <th>Reserved Margin</th>
+                <th>SL / TP</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody">
+              <tr>
+                <td colspan="11" class="empty-cell">No pending limit orders.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 3: Completed Trade History Table -->
+      <div id="tab-trades" class="tab-content-panel" style="display:none;">
+        <div class="table-responsive">
+          <table class="terminal-table" id="trades-table">
+            <thead>
+              <tr>
+                <th>Close Time</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Entry Price</th>
+                <th>Exit Price</th>
+                <th>Quantity</th>
+                <th>Leverage</th>
+                <th>Gross PnL</th>
+                <th>Fee</th>
+                <th>Net Realized PnL</th>
+                <th>Exit Reason</th>
+              </tr>
+            </thead>
+            <tbody id="trades-tbody">
+              <tr>
+                <td colspan="11" class="empty-cell">No completed trades recorded yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 4: Live Confluence Signals Feed -->
+      <div id="tab-signals" class="tab-content-panel" style="display:none;">
+        <div id="signal-feed-list" class="signal-feed-list">
+          <div id="feed-placeholder" style="color:var(--text-muted); font-size:12px; padding:16px;">
+            Listening to live ticks... Signals will appear immediately upon confirmed bar close.
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: 8-Factor Confluence Breakdown -->
+      <div id="tab-confluence" class="tab-content-panel" style="display:none;">
+        <div class="confluence-grid">
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">1. 9 / 21 EMA Ribbon</strong><br>
+            <span style="color:var(--text-secondary);">Fast EMA crossing & aligned over Slow EMA</span>
+          </div>
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">2. 200 EMA Macro Filter</strong><br>
+            <span style="color:var(--text-secondary);">Strict macro trend guard (Long above / Short below)</span>
+          </div>
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">3. RSI Momentum & Safety</strong><br>
+            <span style="color:var(--text-secondary);">RSI > 51 (without blowing off over 70)</span>
+          </div>
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">4. MACD Acceleration</strong><br>
+            <span style="color:var(--text-secondary);">MACD Line aligned & histogram accelerating</span>
+          </div>
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">5. Volume Surge</strong><br>
+            <span style="color:var(--text-secondary);">Volume &gt; 1.1x 20 SMA or consecutive expansion</span>
+          </div>
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">6. Institutional VWAP</strong><br>
+            <span style="color:var(--text-secondary);">Price trading above/below daily VWAP benchmark</span>
+          </div>
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">7. High-Conviction Candle</strong><br>
+            <span style="color:var(--text-secondary);">Candle body &ge; 55% of range, closing at extreme</span>
+          </div>
+          <div class="conf-card">
+            <strong style="color:var(--color-cyan);">8. S/R Breakout & Retest</strong><br>
+            <span style="color:var(--text-secondary);">Penetration past swing high/low with ATR buffer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  </div> <!-- /tab-terminal -->
+
+  <!-- ========================================================================
+       TAB PANE 2: INTRADAY SETUPS SCANNER
+       ======================================================================== -->
+  <div id="tab-scanner" class="tab-pane" style="display:none; padding:16px;">
+    <div class="panel-header-bar">
+      <div class="panel-title-group">
+        <span class="panel-main-title">🔍 Intraday Setups &amp; Multi-Pair Scanner</span>
+        <span class="panel-subtitle">Automated scanner monitoring top 6 crypto futures pairs (5m/15m) for high-probability setups</span>
+      </div>
+      <div class="panel-actions">
+        <span class="status-pill online" id="scanner-status">MONITORING 6 PAIRS</span>
+        <button class="ctrl-btn refresh-btn" id="scanner-refresh-btn">🔄 Scan Now</button>
+      </div>
+    </div>
+    <div class="scanner-cards-grid" id="scanner-cards-container">
+      <div class="loading-state-box">Scanning crypto markets for intraday breakouts, sweeps, and retests...</div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       TAB PANE 3: INSTITUTIONAL PERFORMANCE ANALYTICS
+       ======================================================================== -->
+  <div id="tab-analytics" class="tab-pane" style="display:none; padding:16px;">
+    <div class="panel-header-bar">
+      <div class="panel-title-group">
+        <span class="panel-main-title">📊 Institutional Performance Analytics</span>
+        <span class="panel-subtitle">Audited metrics separated by Simulated Paper vs Real MEXC Futures executions</span>
+      </div>
+      <div class="analytics-mode-pills">
+        <button class="analytics-pill active" id="btn-analytics-paper" data-mode="paper">📄 Paper Trading</button>
+        <button class="analytics-pill" id="btn-analytics-real" data-mode="real">🏦 MEXC Live</button>
+      </div>
+    </div>
+    <div class="analytics-kpi-grid" id="analytics-kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-lbl">WIN RATE</span>
+        <span class="kpi-val" id="kpi-winrate">--%</span>
+        <span class="kpi-sub" id="kpi-winloss-sub">-- Wins / -- Losses</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">PROFIT FACTOR</span>
+        <span class="kpi-val" id="kpi-profitfactor">--</span>
+        <span class="kpi-sub">Gross Win / Gross Loss</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">NET REALIZED PNL</span>
+        <span class="kpi-val" id="kpi-netpnl">$0.00</span>
+        <span class="kpi-sub" id="kpi-total-trades">0 Total Trades</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">MAX DRAWDOWN</span>
+        <span class="kpi-val danger" id="kpi-drawdown">0.0%</span>
+        <span class="kpi-sub">From Account Peak</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">AVERAGE WIN</span>
+        <span class="kpi-val success" id="kpi-avgwin">$0.00</span>
+        <span class="kpi-sub">Per Winning Trade</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">AVERAGE LOSS</span>
+        <span class="kpi-val danger" id="kpi-avgloss">$0.00</span>
+        <span class="kpi-sub">Per Losing Trade</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">BEST TRADE</span>
+        <span class="kpi-val success" id="kpi-besttrade">$0.00</span>
+        <span class="kpi-sub">Highest Single Gain</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">WORST TRADE</span>
+        <span class="kpi-val danger" id="kpi-worsttrade">$0.00</span>
+        <span class="kpi-sub">Max Single Loss</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       TAB PANE 4: HISTORICAL STRATEGY BACKTESTER
+       ======================================================================== -->
+  <div id="tab-backtest" class="tab-pane" style="display:none; padding:16px;">
+    <div class="backtest-header-card">
+      <div class="panel-title-group">
+        <span class="panel-main-title">🧪 Strategy Backtester (100-Point Confluence Model)</span>
+        <span class="panel-subtitle">Backtest exact multi-factor confluence, market structure, and risk sizing on historical market data</span>
+      </div>
+      <div class="backtest-form-grid">
+        <div class="bt-form-item">
+          <label>Symbol:</label>
+          <select id="bt-symbol" class="bt-select">
+            <option value="BTCUSDT">BTCUSDT</option>
+            <option value="ETHUSDT">ETHUSDT</option>
+            <option value="SOLUSDT">SOLUSDT</option>
+            <option value="BNBUSDT">BNBUSDT</option>
+            <option value="XRPUSDT">XRPUSDT</option>
+            <option value="DOGEUSDT">DOGEUSDT</option>
+          </select>
+        </div>
+        <div class="bt-form-item">
+          <label>Timeframe:</label>
+          <select id="bt-interval" class="bt-select">
+            <option value="1m">1m (Scalp)</option>
+            <option value="5m" selected>5m (Intraday)</option>
+            <option value="15m">15m (Swing Scalp)</option>
+            <option value="1h">1h (Macro)</option>
+          </select>
+        </div>
+        <div class="bt-form-item">
+          <label>Min Confluence Score (50-95):</label>
+          <input type="number" id="bt-threshold" class="bt-input" value="80" min="50" max="95">
+        </div>
+        <div class="bt-form-item">
+          <label>Risk Per Trade (%):</label>
+          <input type="number" id="bt-risk" class="bt-input" value="1.5" step="0.1" min="0.5" max="5.0">
+        </div>
+        <div class="bt-form-item action">
+          <button class="btn-primary" id="btn-run-backtest">🚀 Run Simulation</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="backtest-results-wrap" style="display:none; margin-top:16px;">
+      <div class="analytics-kpi-grid" id="bt-kpi-grid"></div>
+      <div class="table-card" style="margin-top:16px;">
+        <div class="card-title">Backtest Execution Log (Bar-by-bar)</div>
+        <div class="table-scroll-wrap">
+          <table class="data-table" id="bt-trades-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Side</th>
+                <th>Entry Price</th>
+                <th>Exit Price</th>
+                <th>Units</th>
+                <th>Net PnL ($)</th>
+                <th>Return %</th>
+                <th>Exit Reason</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody id="bt-trades-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       TAB PANE 5: PRE-FLIGHT 15-POINT AUDIT LOGS
+       ======================================================================== -->
+  <div id="tab-audit" class="tab-pane" style="display:none; padding:16px;">
+    <div class="panel-header-bar">
+      <div class="panel-title-group">
+        <span class="panel-main-title">🛡️ 15-Point Pre-Flight Execution Audit Trail</span>
+        <span class="panel-subtitle">Real-time inspection of institutional safety checks for all generated signals and orders</span>
+      </div>
+      <button class="ctrl-btn refresh-btn" id="audit-refresh-btn">🔄 Refresh Log</button>
+    </div>
+    <div class="table-card" style="margin-top:12px;">
+      <div class="table-scroll-wrap">
+        <table class="data-table" id="audit-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Mode</th>
+              <th>Score</th>
+              <th>Status</th>
+              <th>Passed / Total</th>
+              <th>Failed Checks</th>
+              <th>Summary</th>
+            </tr>
+          </thead>
+          <tbody id="audit-body">
+            <tr>
+              <td colspan="9" style="text-align:center; padding:24px; color:var(--text-muted);">
+                No trade execution audits recorded yet. Signals and orders will appear here in real time.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MOBILE BOTTOM NAVIGATION DOCK (VISIBLE ON MOBILE ONLY)
+       ======================================================================== -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <button class="mobile-nav-btn active" data-mobile-tab="chart">
+      <span class="mobile-nav-icon">📊</span>
+      <span class="mobile-nav-label">Chart</span>
+    </button>
+    <button class="mobile-nav-btn" data-mobile-tab="trade">
+      <span class="mobile-nav-icon">⚡</span>
+      <span class="mobile-nav-label">Trade</span>
+    </button>
+    <button class="mobile-nav-btn" data-mobile-tab="positions">
+      <span class="mobile-nav-icon">💼</span>
+      <span class="mobile-nav-label">Positions</span>
+      <span class="mobile-badge" id="mobile-pos-badge" style="display:none;">0</span>
+    </button>
+    <button class="mobile-nav-btn" data-mobile-tab="signals">
+      <span class="mobile-nav-icon">🔔</span>
+      <span class="mobile-nav-label">Signals</span>
+    </button>
+  </nav>
+
+  <!-- Mobile Access Modal: Direct 24/7 Cloud & Local Wi-Fi Links -->
+  <div class="modal-backdrop" id="mobile-access-modal">
+    <div class="terminal-modal" style="max-width:480px;">
+      <div class="modal-header">
+        <span style="color:var(--color-cyan); font-weight:700;">📱 Mobile Direct Access (Zero PC Dependency)</span>
+        <button class="modal-close-btn" id="close-mobile-access-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <!-- Option 1: Direct 24/7 Cloud Link -->
+        <div style="background:rgba(0, 210, 255, 0.08); border:1px solid rgba(0, 210, 255, 0.3); border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="font-size:12px; font-weight:700; color:var(--color-cyan); margin-bottom:6px;">
+            🌐 24/7 Direct Cloud URL (No PC Needed!)
+          </div>
+          <div id="mobile-cloud-url-box" style="background:var(--bg-main); padding:8px 10px; border-radius:6px; font-family:var(--font-mono); font-size:14px; font-weight:800; color:#ffffff; margin-bottom:8px; border:1px solid var(--border-color); user-select:all; cursor:pointer;" title="Click to copy">
+            https://crypto-scalper-live.surge.sh
+          </div>
+          <div style="display:flex; justify-content:center; gap:8px;">
+            <button class="btn-primary" id="copy-cloud-url-btn" style="font-size:12px; padding:6px 14px;">📋 Copy Cloud Link</button>
+            <a href="https://crypto-scalper-live.surge.sh" target="_blank" class="btn-secondary" style="font-size:12px; padding:6px 14px; text-decoration:none; display:inline-flex; align-items:center;">🚀 Open Link</a>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:center; margin-bottom:12px;">
+          <img id="mobile-qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://crypto-scalper-live.surge.sh" alt="Mobile QR Code" style="border-radius:8px; border:2px solid var(--border-highlight); width:170px; height:170px; background:#fff; padding:6px;">
+        </div>
+
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">
+          Scan with your iPhone Camera or Android Google Lens to open the terminal on mobile instantly. Runs 100% autonomously!
+        </p>
+
+        <!-- Option 2: Local Wi-Fi -->
+        <div style="font-size:11px; color:var(--text-secondary); border-top:1px solid var(--border-color); padding-top:10px;">
+          Local Wi-Fi Address (when on home network): <code id="local-wifi-link" style="color:var(--color-gold);">http://192.168.1.8:3000</code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="done-mobile-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leverage Selector Modal -->
+  <div class="modal-backdrop" id="leverage-modal">
+    <div class="terminal-modal small-modal">
+      <div class="modal-header">
+        <span>Adjust Leverage (Isolated Margin)</span>
+        <button class="modal-close-btn" id="close-leverage-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="leverage-display-box">
+          <span id="modal-leverage-display">10x</span>
+        </div>
+        <div class="leverage-pills-grid" id="leverage-pills-container">
+          <!-- Rendered dynamically -->
+        </div>
+        <p style="font-size:11px; color:var(--text-secondary); margin-top:12px;">
+          Higher leverage increases liquidation risk. Position margin = (Quantity &times; Entry Price) / Leverage.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="confirm-leverage-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Confirmation Modal -->
+  <div class="modal-backdrop" id="order-confirm-modal">
+    <div class="terminal-modal">
+      <div class="modal-header">
+        <span id="confirm-modal-title">Confirm Order</span>
+        <button class="modal-close-btn" id="close-confirm-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-summary-list" id="confirm-summary-content">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-confirm-btn">Cancel</button>
+        <button class="btn-primary" id="execute-confirm-btn">Confirm Order</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Partial Close Modal -->
+  <div class="modal-backdrop" id="partial-close-modal">
+    <div class="terminal-modal small-modal">
+      <div class="modal-header">
+        <span>Partial Close Position</span>
+        <button class="modal-close-btn" id="close-partial-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="dock-input-group">
+          <label>Select percentage to close:</label>
+          <div class="percent-pills-row" style="margin:8px 0;">
+            <button class="pct-btn close-pct-btn" data-close-pct="25">25%</button>
+            <button class="pct-btn close-pct-btn" data-close-pct="50">50%</button>
+            <button class="pct-btn close-pct-btn" data-close-pct="75">75%</button>
+            <button class="pct-btn close-pct-btn" data-close-pct="100">100%</button>
+          </div>
+          <label for="partial-close-qty-input">Or enter exact quantity:</label>
+          <div class="dock-input-box">
+            <input type="number" id="partial-close-qty-input" step="any">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-partial-btn">Cancel</button>
+        <button class="btn-primary" id="execute-partial-close-btn">Execute Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modify SL/TP Modal -->
+  <div class="modal-backdrop" id="modify-sltp-modal">
+    <div class="terminal-modal small-modal">
+      <div class="modal-header">
+        <span>Modify Stop Loss / Take Profit</span>
+        <button class="modal-close-btn" id="close-modify-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="dock-input-group">
+          <label for="modify-tp-input">Take Profit Price (USD):</label>
+          <div class="dock-input-box">
+            <input type="number" id="modify-tp-input" placeholder="Leave empty to remove" step="any">
+          </div>
+        </div>
+        <div class="dock-input-group" style="margin-top:12px;">
+          <label for="modify-sl-input">Stop Loss Price (USD):</label>
+          <div class="dock-input-box">
+            <input type="number" id="modify-sl-input" placeholder="Leave empty to remove" step="any">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-modify-btn">Cancel</button>
+        <button class="btn-primary" id="save-modify-sltp-btn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync / Reset Account Modal -->
+  <div class="modal-backdrop" id="reset-account-modal">
+    <div class="terminal-modal small-modal">
+      <div class="modal-header">
+        <span>🔄 Sync &amp; Reset Terminal State</span>
+        <button class="modal-close-btn" id="close-reset-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--text-primary); margin-bottom:12px;">
+          This will refresh your MEXC connection, clear cached client states, and synchronize your live futures equity.
+        </p>
+        <div class="dock-input-group">
+          <label for="reset-starting-balance">Target Baseline Equity (USD):</label>
+          <div class="dock-input-box">
+            <input type="number" id="reset-starting-balance" value="10000" step="1000">
+          </div>
+        </div>
+        <label class="checkbox-label" style="margin-top:12px;">
+          <input type="checkbox" id="reset-clear-history-checkbox" checked>
+          <span>Clear client cached trade history</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-reset-modal-btn">Cancel</button>
+        <button class="btn-primary" id="confirm-reset-account-btn" style="background:var(--color-cyan); color:#000; font-weight:800;">Confirm Sync &amp; Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: MEXC AUTO-TRADE CONFLUENCE SCORE SELECTOR
+       ======================================================================== -->
+  <div class="modal-backdrop" id="autotrade-score-modal">
+    <div class="terminal-modal" style="max-width:480px;">
+      <div class="modal-header">
+        <span style="color:var(--color-cyan); font-weight:700;">🎯 MEXC Auto-Trade Confluence Score</span>
+        <button class="modal-close-btn" id="close-autotrade-score-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px; color:var(--text-secondary); margin-bottom:14px; line-height:1.5;">
+          Select the minimum quantitative confluence score required before orders automatically execute on MEXC. Auto-trade triggers <b>strictly</b> when a confirmed signal reaches or exceeds this score.
+        </p>
+        
+        <div class="score-pills-grid" id="score-pills-container">
+          <div class="score-select-card active" data-score="85">
+            <div class="score-card-header">
+              <span class="score-badge">85 / 100</span>
+              <span class="score-tag recommended">RECOMMENDED DEFAULT</span>
+            </div>
+            <div class="score-card-desc">High-conviction setups with strict multi-indicator &amp; volume confluence.</div>
+          </div>
+
+          <div class="score-select-card" data-score="90">
+            <div class="score-card-header">
+              <span class="score-badge">90 / 100</span>
+              <span class="score-tag elite">ELITE CONVICTION</span>
+            </div>
+            <div class="score-card-desc">Prime institutional breakout &amp; orderflow alignments only.</div>
+          </div>
+
+          <div class="score-select-card" data-score="80">
+            <div class="score-card-header">
+              <span class="score-badge">80 / 100</span>
+              <span class="score-tag strong">STRONG CONFLUENCE</span>
+            </div>
+            <div class="score-card-desc">Clean 200 EMA + Ribbon + Momentum setups.</div>
+          </div>
+
+          <div class="score-select-card" data-score="75">
+            <div class="score-card-header">
+              <span class="score-badge">75 / 100</span>
+              <span class="score-tag moderate">MODERATE CONFLUENCE</span>
+            </div>
+            <div class="score-card-desc">Captures momentum moves with active volume expansion.</div>
+          </div>
+
+          <div class="score-select-card" data-score="70">
+            <div class="score-card-header">
+              <span class="score-badge">70 / 100</span>
+              <span class="score-tag standard">STANDARD SETUP</span>
+            </div>
+            <div class="score-card-desc">Executes all confirmed scalp setups meeting basic confluence.</div>
+          </div>
+        </div>
+
+        <div class="custom-score-container" style="margin-top:14px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:6px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between;">
+          <label for="custom-autotrade-score" style="font-size:12px; color:var(--text-primary); font-weight:700;">Custom Score Threshold (50-99):</label>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input type="number" id="custom-autotrade-score" min="50" max="99" value="85" style="width:65px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:4px; color:#fff; font-size:14px; font-weight:800; text-align:center; padding:5px;">
+            <span style="font-size:12px; color:var(--text-muted);">/ 100</span>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; font-size:12px; color:var(--color-cyan); background:rgba(0,210,255,0.06); padding:8px 12px; border-radius:6px; border:1px solid rgba(0,210,255,0.2);">
+          ⚡ Active Policy: Auto-Trade will execute on MEXC when Confluence Score &ge; <b id="active-score-preview" style="color:#00e676; font-size:13px;">85</b> / 100.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-autotrade-score-btn">Cancel</button>
+        <button class="btn-primary" id="save-autotrade-score-btn">Save Score Threshold</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal (Preserved) -->
+  <div class="modal-backdrop" id="settings-modal">
+    <div class="terminal-modal">
+      <div class="modal-header">
+        <span>⚙️ SCALPER ENGINE PARAMETERS</span>
+        <button class="modal-close-btn" id="close-settings-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group-title">Signal & Confluence Scoring</div>
+        <div class="setting-row">
+          <label for="input-min-score">Minimum Confluence Score (out of 8):</label>
+          <input type="number" id="input-min-score" value="6" min="4" max="8">
+        </div>
+        <div class="setting-row">
+          <label for="input-cooldown">Signal Cooldown (Bars):</label>
+          <input type="number" id="input-cooldown" value="4" min="1" max="20">
+        </div>
+
+        <div class="settings-group-title">Risk Management & Targets</div>
+        <div class="setting-row">
+          <label for="input-atr-mult">Stop Loss ATR Multiplier:</label>
+          <input type="number" id="input-atr-mult" value="1.5" step="0.1" min="0.5">
+        </div>
+        <div class="setting-row">
+          <label for="input-trailing">Enable Ratcheting Trailing Stop:</label>
+          <input type="checkbox" id="input-trailing" checked>
+        </div>
+
+        <div class="settings-group-title">Market Regime & Chop Filters</div>
+        <div class="setting-row">
+          <label for="input-use-200">Enforce 200 EMA Macro Filter:</label>
+          <input type="checkbox" id="input-use-200" checked>
+        </div>
+        <div class="setting-row">
+          <label for="input-use-vwap">Enforce Daily VWAP Filter:</label>
+          <input type="checkbox" id="input-use-vwap" checked>
+        </div>
+        <div class="setting-row">
+          <label for="input-use-mtf">Enable Multi-Timeframe (MTF) Confirmation:</label>
+          <input type="checkbox" id="input-use-mtf" checked>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-settings-btn">Cancel</button>
+        <button class="btn-primary" id="save-settings-btn">Apply Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Telegram & WhatsApp Signal Forwarding Modal -->
+  <div class="modal-backdrop" id="alerts-modal">
+    <div class="terminal-modal alerts-settings-modal">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span>✈️ Telegram &amp; 💬 WhatsApp Signal Forwarding</span>
+        </div>
+        <button class="modal-close-btn" id="close-alerts-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px; color:var(--text-secondary); margin-bottom:14px;">
+          Automatically forward high-probability trade signals (Entry, Stop Loss, Take Profit 1-3, Confluence Score) directly to Discord, Phone Push (ntfy.sh), Telegram, and WhatsApp.
+        </p>
+
+        <!-- Discord Webhook Card (Recommended) -->
+        <div class="alert-config-card" style="border: 1px solid rgba(88, 101, 242, 0.4); background: rgba(88, 101, 242, 0.05);">
+          <div class="alert-card-header">
+            <div class="alert-card-title">
+              <span class="alert-icon" style="background:#5865f2; color:#fff; font-size:11px; border-radius:4px; padding:2px 5px; font-weight:800;">DISCORD</span>
+              <span style="font-weight:700;">Discord Webhook Alerts <span style="font-size:10px; background:#00e676; color:#000; font-weight:800; padding:2px 6px; border-radius:3px; margin-left:6px;">RECOMMENDED</span></span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="discord-enable-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="alert-card-body" id="discord-config-fields">
+            <div class="alert-field-group">
+              <label for="discord-webhook-url">Discord Webhook URL:</label>
+              <input type="text" id="discord-webhook-url" class="alert-input" placeholder="https://discord.com/api/webhooks/123456789/abcdef...">
+              <span class="alert-help-text">
+                <b>⚡ 10-Second Setup (Zero Bots, Zero Verification):</b><br>
+                1. Open Discord on PC or phone ➔ Open your server (or create a free private one).<br>
+                2. Right-click / Tap channel ➔ <b>Edit Channel</b> ➔ <b>Integrations</b> ➔ <b>Webhooks</b> ➔ <b>New Webhook</b>.<br>
+                3. Click <b>Copy Webhook URL</b> and paste it above! Receives rich green/red cards and mobile notifications.
+              </span>
+            </div>
+            <div class="alert-actions-row">
+              <button class="btn-test-alert" id="discord-test-btn" style="background:#5865f2; color:#fff;">⚡ Test Discord Alert</button>
+              <span class="test-feedback" id="discord-test-feedback"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ntfy.sh Instant Mobile Push Card -->
+        <div class="alert-config-card" style="border: 1px solid rgba(0, 210, 255, 0.3); background: rgba(0, 210, 255, 0.04);">
+          <div class="alert-card-header">
+            <div class="alert-card-title">
+              <span class="alert-icon" style="background:var(--color-cyan); color:#000; font-size:11px; border-radius:4px; padding:2px 5px; font-weight:800;">PUSH</span>
+              <span style="font-weight:700;">ntfy.sh Mobile Push Notifications <span style="font-size:10px; background:var(--color-cyan); color:#000; font-weight:800; padding:2px 6px; border-radius:3px; margin-left:6px;">NO SIGNUP</span></span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="ntfy-enable-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="alert-card-body" id="ntfy-config-fields">
+            <div class="alert-field-group">
+              <label for="ntfy-topic-input">Your Secret Topic Name:</label>
+              <input type="text" id="ntfy-topic-input" class="alert-input" placeholder="e.g. scalper-pro-alerts-789">
+              <span class="alert-help-text">
+                <b>📱 Instant Free Phone Push Alerts:</b><br>
+                1. Install the free <b>ntfy</b> app on iPhone (App Store) or Android (Google Play).<br>
+                2. Tap <b>+</b> and subscribe to your secret topic name.<br>
+                3. High-priority sound and vibration signals will push straight to your phone!
+              </span>
+            </div>
+            <div class="alert-actions-row">
+              <button class="btn-test-alert" id="ntfy-test-btn" style="background:var(--color-cyan); color:#000; font-weight:700;">⚡ Test Mobile Push Alert</button>
+              <span class="test-feedback" id="ntfy-test-feedback"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telegram Card -->
+        <div class="alert-config-card">
+          <div class="alert-card-header">
+            <div class="alert-card-title">
+              <span class="alert-icon tg-icon">✈️</span>
+              <span>Telegram Bot Integration</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="tg-enable-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="alert-card-body" id="tg-config-fields">
+            <div class="alert-field-group">
+              <label for="tg-bot-token">Bot Token:</label>
+              <input type="password" id="tg-bot-token" class="alert-input" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
+              <span class="alert-help-text">Create a free bot with <a href="https://t.me/BotFather" target="_blank" rel="noopener" style="color:var(--color-cyan);">@BotFather</a> on Telegram to get your token.</span>
+            </div>
+            <div class="alert-field-group">
+              <label for="tg-chat-id">Numeric Chat ID (from @userinfobot):</label>
+              <input type="text" id="tg-chat-id" class="alert-input" placeholder="e.g. 987654321">
+              <span class="alert-help-text">
+                <b>⚠️ Important:</b> 1. Open your bot in Telegram and press <b>START</b> first.<br>
+                2. Get your numeric ID from <a href="https://t.me/userinfobot" target="_blank" rel="noopener" style="color:var(--color-cyan);">@userinfobot</a> (not your @username).
+              </span>
+            </div>
+            <div class="alert-actions-row">
+              <button class="btn-test-alert" id="tg-test-btn">⚡ Test Telegram Alert</button>
+              <span class="test-feedback" id="tg-test-feedback"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- WhatsApp Card -->
+        <div class="alert-config-card">
+          <div class="alert-card-header">
+            <div class="alert-card-title">
+              <span class="alert-icon wa-icon">💬</span>
+              <span>WhatsApp Integration</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="wa-enable-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="alert-card-body" id="wa-config-fields">
+            <div class="alert-field-group">
+              <label for="wa-provider-select">Provider / Method:</label>
+              <select id="wa-provider-select" class="alert-input">
+                <option value="callmebot">CallMeBot (Free Instant Personal WhatsApp API)</option>
+                <option value="webhook">Custom Webhook (Twilio / Zapier / Make / n8n)</option>
+              </select>
+            </div>
+
+            <div id="wa-callmebot-fields">
+              <div class="alert-field-group">
+                <label for="wa-phone">Phone Number (International Format):</label>
+                <input type="text" id="wa-phone" class="alert-input" placeholder="e.g. +1234567890 or +919876543210">
+              </div>
+              <div class="alert-field-group">
+                <label for="wa-apikey">CallMeBot API Key:</label>
+                <input type="password" id="wa-apikey" class="alert-input" placeholder="e.g. 123456">
+                <span class="alert-help-text">
+                  <b>Quick 10-second setup:</b><br>
+                  1. Save <code>+34 911 06 14 74</code> to phone contacts as CallMeBot.<br>
+                  2. Send <code>I allow callmebot to send me messages</code> to it on WhatsApp.<br>
+                  3. Paste the API key it sends you here.
+                </span>
+              </div>
+            </div>
+
+            <div id="wa-webhook-fields" style="display:none;">
+              <div class="alert-field-group">
+                <label for="wa-webhook-url">Webhook URL:</label>
+                <input type="text" id="wa-webhook-url" class="alert-input" placeholder="https://your-webhook-endpoint.com/api">
+                <span class="alert-help-text">Dispatches HTTP POST JSON containing full signal parameters.</span>
+              </div>
+            </div>
+
+            <div class="alert-actions-row">
+              <button class="btn-test-alert" id="wa-test-btn">⚡ Test WhatsApp Alert</button>
+              <span class="test-feedback" id="wa-test-feedback"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signal Filtering Card -->
+        <div class="alert-config-card">
+          <div class="alert-card-header">
+            <div class="alert-card-title">
+              <span class="alert-icon filter-icon">🎯</span>
+              <span>Signal Quality &amp; Alert Filters</span>
+            </div>
+          </div>
+          <div class="alert-card-body">
+            <div class="alert-field-group">
+              <label for="alert-min-score">Minimum Confluence Score to Forward:</label>
+              <select id="alert-min-score" class="alert-input">
+                <option value="70" selected>Score &ge; 70 / 100 (Recommended &mdash; High Conviction)</option>
+                <option value="80">Score &ge; 80 / 100 (Elite Confluence Only)</option>
+                <option value="60">Score &ge; 60 / 100 (All Valid Scalp Signals)</option>
+                <option value="1">Any Score (No filter)</option>
+              </select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;">
+                <input type="checkbox" id="alert-filter-buysell" checked> Forward BUY (Long) &amp; SELL (Short) entries
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;">
+                <input type="checkbox" id="alert-filter-exit"> Forward Take Profit &amp; Stop Loss exit updates
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-alerts-btn">Cancel</button>
+        <button class="btn-primary" id="save-alerts-btn">Save Alert Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: TWO-STEP AUTO-TRADING ACTIVATION
+       ======================================================================== -->
+  <div class="modal-backdrop" id="autotrade-modal">
+    <div class="terminal-modal" style="max-width:520px;">
+      <div class="modal-header">
+        <span style="color:var(--color-cyan); font-weight:700;">🤖 Institutional Auto-Trading Activation</span>
+        <button class="modal-close-btn" id="close-autotrade-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-warning-box" style="background:rgba(255,160,0,0.1); border:1px solid rgba(255,160,0,0.3); border-radius:6px; padding:12px; margin-bottom:14px; font-size:12px; line-height:1.5;">
+          <strong style="color:#ffa000;">⚠️ Capital Protection &amp; Risk Notice:</strong><br>
+          Enabling Auto-Trading authorizes the system to automatically place trades when signals achieve <b>&ge; 85/100</b> confluence.
+          All trades pass through the <b>15-Point Pre-Flight Execution Filter</b> with strict capital preservation.
+        </div>
+
+        <div class="autotrade-params-card" style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:6px; padding:12px; margin-bottom:14px;">
+          <div style="font-size:11px; font-weight:700; color:var(--text-secondary); margin-bottom:8px; text-transform:uppercase;">Enforced Safety Controls:</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px;">
+            <div>• Min Score: <b style="color:var(--color-green);">85 / 100</b></div>
+            <div>• Max Risk / Trade: <b>1.5%</b></div>
+            <div>• Daily Loss Limit: <b style="color:var(--color-red);">-5.0%</b></div>
+            <div>• Max Open Positions: <b>3</b></div>
+            <div>• Min R:R Ratio: <b>1 : 1.50</b></div>
+            <div>• Server Reboot: <b>Always Resets to OFF</b></div>
+          </div>
+        </div>
+
+        <div class="alert-field-group" style="margin-bottom:12px;">
+          <label for="autotrade-mode-select">Execution Destination:</label>
+          <select id="autotrade-mode-select" class="alert-input">
+            <option value="MEXC_REAL" selected>MEXC Futures Live Account (Direct MEXC Execution)</option>
+            <option value="PAPER">Simulated Sandbox (Testing)</option>
+          </select>
+        </div>
+
+        <div class="alert-field-group">
+          <label for="autotrade-password">Authorization Password:</label>
+          <input type="password" id="autotrade-password" class="alert-input" placeholder="Enter admin password to authorize">
+          <span class="alert-help-text" style="color:var(--text-muted); font-size:11px;">Default admin key: <code>scalper_admin_2026</code></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-autotrade-btn">Cancel</button>
+        <button class="btn-danger" id="confirm-autotrade-btn">Authorize &amp; Enable Auto-Trading</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: MEXC FUTURES ACCOUNT INTEGRATION & REAL AUTO-TRADING SETUP
+       ======================================================================== -->
+  <div class="modal-backdrop" id="mexc-modal">
+    <div class="terminal-modal" style="max-width:560px;">
+      <div class="modal-header">
+        <span style="color:#00e676; font-weight:700;">🏦 MEXC Contract (Futures) Real Account &amp; Auto-Trade Setup</span>
+        <button class="modal-close-btn" id="close-mexc-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Telemetry Chips -->
+        <div class="mexc-telemetry-box" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+          <div class="acc-chip" style="background:var(--bg-main); padding:10px; border-radius:6px; border:1px solid var(--border-color);">
+            <span class="chip-title">MEXC Futures Equity</span>
+            <span id="mexc-equity-display" class="chip-val" style="font-size:18px; color:#00e676;">$10,000.00</span>
+          </div>
+          <div class="acc-chip" style="background:var(--bg-main); padding:10px; border-radius:6px; border:1px solid var(--border-color);">
+            <span class="chip-title">Available Margin</span>
+            <span id="mexc-avail-display" class="chip-val" style="font-size:18px; color:var(--color-cyan);">$10,000.00</span>
+          </div>
+        </div>
+
+        <!-- Connection Status Card -->
+        <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:6px; padding:12px; margin-bottom:14px; font-size:12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="color:var(--text-secondary);">Connection State:</span>
+            <span id="mexc-conn-status" class="status-pill online">ONLINE</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="color:var(--text-secondary);">Execution Mode:</span>
+            <span id="mexc-mode-display" style="font-weight:700; color:#00e676;">SANDBOX MOCK (Safe)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="color:var(--text-secondary);">Active API Key Mask:</span>
+            <span id="mexc-key-mask" style="font-family:var(--font-mono); color:var(--text-muted);">NOT_CONFIGURED (Mock active)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:var(--text-secondary);">API Ping Latency:</span>
+            <span id="mexc-ping-display" style="font-family:var(--font-mono); color:var(--color-cyan);">15ms</span>
+          </div>
+        </div>
+
+        <!-- MEXC API Credentials Input Form -->
+        <div class="mexc-keys-form" style="background:var(--bg-secondary); border:1px solid var(--border-highlight); border-radius:8px; padding:14px; margin-bottom:14px;">
+          <div style="font-weight:700; font-size:12px; color:var(--color-gold); margin-bottom:8px;">
+            🔑 Paste Your MEXC Contract API Credentials:
+          </div>
+          <div class="alert-field-group" style="margin-bottom:10px;">
+            <label for="mexc-api-key-input" style="font-size:11px;">MEXC Access Key (API Key):</label>
+            <input type="text" id="mexc-api-key-input" class="alert-input" placeholder="e.g. mx0vgbh908123abcdef..." autocomplete="off">
+          </div>
+          <div class="alert-field-group" style="margin-bottom:12px;">
+            <label for="mexc-api-secret-input" style="font-size:11px;">MEXC Secret Key:</label>
+            <input type="password" id="mexc-api-secret-input" class="alert-input" placeholder="Paste your 64-char MEXC Secret Key" autocomplete="off">
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-primary" id="btn-save-mexc-keys" style="flex:2; font-weight:700;">💾 Connect &amp; Verify MEXC Account</button>
+            <button class="btn-secondary" id="refresh-mexc-btn" style="flex:1;">🔄 Test Ping</button>
+          </div>
+          <div id="mexc-save-feedback" style="margin-top:8px; font-size:11px; display:none;"></div>
+        </div>
+
+        <!-- Auto-Execute MEXC Real Orders Switch -->
+        <div style="background:rgba(0, 230, 118, 0.08); border:1px solid rgba(0, 230, 118, 0.3); border-radius:6px; padding:10px 12px; margin-bottom:12px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; font-weight:600; color:#ffffff;">
+            <input type="checkbox" id="mexc-auto-execute-toggle">
+            <span>⚡ Enable Automatic Real-Money Execution on MEXC Futures</span>
+          </label>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px; margin-left:22px;">
+            When checked and Auto-Trading is ON, signals achieving <b>&ge; 85/100</b> confluence will automatically place orders on your MEXC account after passing the 15-Point Pre-Flight Filter.
+          </div>
+        </div>
+
+        <p style="font-size:11px; color:var(--text-muted); line-height:1.4;">
+          🔒 <b>Capital Protection &amp; Security:</b> Keys are encrypted and sent directly to your server/broker. Secrets are never exposed to the browser or third-party servers.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="close-mexc-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: EMERGENCY CLOSE ALL POSITIONS CONFIRMATION
+       ======================================================================== -->
+  <div class="modal-backdrop" id="closeall-modal">
+    <div class="terminal-modal small-modal">
+      <div class="modal-header">
+        <span style="color:var(--color-red); font-weight:700;">🚨 Close All Open Positions</span>
+        <button class="modal-close-btn" id="close-closeall-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
+          Are you sure you want to market-close <b>ALL active positions</b> immediately across all pairs?
+        </p>
+        <p style="font-size:11px; color:var(--color-red);">
+          This will execute immediate market orders for both Paper and MEXC open positions.
+        </p>
+      </div>
+      <div class="modal-footer" style="justify-content:center; gap:12px;">
+        <button class="btn-secondary" id="cancel-closeall-btn">Cancel</button>
+        <button class="btn-danger" id="confirm-closeall-btn" style="background:#ff3b30; color:#fff; font-weight:700;">⚡ Market Close All Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="signals/marketStructure.js"></script>
+  <script src="signals/liquidityEngine.js"></script>
+  <script src="signals/mtfEngine.js"></script>
+  <script src="signals/scoringEngine.js"></script>
+  <script src="models.js"></script>
+  <script src="clientTradingEngine.js"></script>
+  <script src="alertService.js"></script>
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

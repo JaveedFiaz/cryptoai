@@ -1,0 +1,294 @@
+/**
+ * MEXC CONTRACT (FUTURES) API CLIENT
+ * Official implementation for MEXC Contract API v1 (https://contract.mexc.com)
+ * - HMAC-SHA256 authenticated request signer
+ * - Private endpoints: Assets/Equity, Open Positions, Order Submit, Order Cancel
+ * - Symbol normalization (e.g. BTCUSDT -> BTC_USDT)
+ * - Rate-limit and error handling
+ * - Zero client secret exposure (Runs strictly server-side)
+ */
+
+const crypto = require('crypto');
+
+class MexcClient {
+  constructor(options = {}) {
+    this.apiKey = options.apiKey || process.env.MEXC_API_KEY || '';
+    this.apiSecret = options.apiSecret || process.env.MEXC_API_SECRET || '';
+    this.baseUrl = options.baseUrl || process.env.MEXC_BASE_URL || 'https://contract.mexc.com';
+    this.timeout = options.timeout || 8000;
+  }
+
+  isConfigured() {
+    return Boolean(this.apiKey && this.apiSecret && this.apiKey.trim() !== '' && this.apiSecret.trim() !== '');
+  }
+
+  updateCredentials(apiKey, apiSecret) {
+    this.apiKey = (apiKey || '').trim();
+    this.apiSecret = (apiSecret || '').trim();
+    return this.isConfigured();
+  }
+
+  /**
+   * Normalize standard symbol (e.g. BTCUSDT) to MEXC Contract symbol (BTC_USDT)
+   */
+  static normalizeSymbol(symbol) {
+    if (!symbol) return 'BTC_USDT';
+    const s = symbol.toUpperCase().replace('-', '_').replace('/', '_');
+    if (s.includes('_')) return s;
+    if (s.endsWith('USDT')) {
+      return s.slice(0, -4) + '_USDT';
+    }
+    return s + '_USDT';
+  }
+
+  /**
+   * Reverse normalization: MEXC (BTC_USDT) -> Standard (BTCUSDT)
+   */
+  static denormalizeSymbol(symbol) {
+    if (!symbol) return 'BTCUSDT';
+    return symbol.toUpperCase().replace('_', '');
+  }
+
+  /**
+   * Generate HMAC-SHA256 signature for MEXC Contract API v1
+   * Sign string format: ApiKey + Request-Time + paramString
+   */
+  generateSignature(timestamp, paramString = '') {
+    const signString = `${this.apiKey}${timestamp}${paramString}`;
+    return crypto
+      .createHmac('sha256', this.apiSecret)
+      .update(signString)
+      .digest('hex');
+  }
+
+  /**
+   * Make an authenticated HTTP request to MEXC Contract API
+   */
+  async request(endpoint, method = 'GET', params = null) {
+    if (!this.isConfigured()) {
+      throw new Error('MEXC API credentials not configured. Please set MEXC_API_KEY and MEXC_API_SECRET.');
+    }
+
+    const timestamp = Date.now().toString();
+    let url = `${this.baseUrl}${endpoint}`;
+    let paramString = '';
+    let body = null;
+
+    if (method === 'GET' && params) {
+      const qs = new URLSearchParams(params).toString();
+      if (qs) {
+        url += `?${qs}`;
+        paramString = qs;
+      }
+    } else if (method === 'POST' && params) {
+      paramString = typeof params === 'string' ? params : JSON.stringify(params);
+      body = paramString;
+    }
+
+    const signature = this.generateSignature(timestamp, paramString);
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'ApiKey': this.apiKey,
+      'Request-Time': timestamp,
+      'Signature': signature
+    };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body,
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      const json = await response.json();
+      if (!response.ok || (json.code !== 0 && json.success === false)) {
+        const errMsg = json.message || json.msg || `HTTP ${response.status}`;
+        throw new Error(`MEXC API Error (${json.code || response.status}): ${errMsg}`);
+      }
+
+      return json.data !== undefined ? json.data : json;
+    } catch (err) {
+      clearTimeout(timer);
+      if (err.name === 'AbortError') {
+        throw new Error(`MEXC API Request Timeout (> ${this.timeout}ms) on ${endpoint}`);
+      }
+      throw err;
+    }
+  }
+
+  // ===========================================================================
+  // PUBLIC ENDPOINTS
+  // ===========================================================================
+
+  async ping() {
+    const url = `${this.baseUrl}/api/v1/contract/ping`;
+    const start = Date.now();
+    const res = await fetch(url);
+    const latency = Date.now() - start;
+    const json = await res.json();
+    return { success: res.ok, latency, data: json };
+  }
+
+  async getServerTime() {
+    const url = `${this.baseUrl}/api/v1/contract/ping`;
+    const res = await fetch(url);
+    const json = await res.json();
+    return json.data || Date.now();
+  }
+
+  // ===========================================================================
+  // PRIVATE ACCOUNT & POSITION ENDPOINTS
+  // ===========================================================================
+
+  /**
+   * Fetch account asset details (USDT equity, available margin, cash balance)
+   */
+  async getAccountAssets(currency = 'USDT') {
+    const endpoint = `/api/v1/private/account/asset/${currency}`;
+    try {
+      const data = await this.request(endpoint, 'GET');
+      return {
+        currency: data.currency || currency,
+        equity: parseFloat(data.equity || data.availableBalance || 0),
+        availableBalance: parseFloat(data.availableBalance || 0),
+        frozenBalance: parseFloat(data.frozenBalance || 0),
+        positionMargin: parseFloat(data.positionMargin || 0),
+        unrealizedPnl: parseFloat(data.unrealizedPnl || data.unrealisedPnl || 0),
+        bonus: parseFloat(data.bonus || 0)
+      };
+    } catch (err) {
+      // Fallback to all assets endpoint if single currency fails
+      const allAssets = await this.request('/api/v1/private/account/assets', 'GET');
+      const usdt = Array.isArray(allAssets) ? allAssets.find(a => a.currency === 'USDT') : allAssets;
+      if (usdt) {
+        return {
+          currency: 'USDT',
+          equity: parseFloat(usdt.equity || usdt.availableBalance || 0),
+          availableBalance: parseFloat(usdt.availableBalance || 0),
+          frozenBalance: parseFloat(usdt.frozenBalance || 0),
+          positionMargin: parseFloat(usdt.positionMargin || 0),
+          unrealizedPnl: parseFloat(usdt.unrealizedPnl || 0),
+          bonus: parseFloat(usdt.bonus || 0)
+        };
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Fetch all open contract positions
+   * @param {string} symbol Optional symbol filter
+   */
+  async getOpenPositions(symbol = null) {
+    const params = symbol ? { symbol: MexcClient.normalizeSymbol(symbol) } : {};
+    const data = await this.request('/api/v1/private/position/open_positions', 'GET', params);
+    const positions = Array.isArray(data) ? data : [];
+
+    return positions.map(p => ({
+      positionId: p.positionId || `${p.symbol}_${p.positionType}`,
+      symbol: MexcClient.denormalizeSymbol(p.symbol),
+      mexcSymbol: p.symbol,
+      holdVol: parseFloat(p.holdVol || 0),
+      positionType: p.positionType === 1 ? 'LONG' : 'SHORT',
+      openPrice: parseFloat(p.openPrice || p.holdAvgPrice || 0),
+      liquidatePrice: parseFloat(p.liquidatePrice || 0),
+      unrealizedPnl: parseFloat(p.unrealizedPnl || p.unrealisedPnl || 0),
+      leverage: parseInt(p.leverage || 10, 10),
+      margin: parseFloat(p.margin || p.positionMargin || 0),
+      isolated: p.openType === 1
+    }));
+  }
+
+  /**
+   * Submit an order to MEXC Futures
+   * @param {Object} order
+   *   - symbol: 'BTCUSDT'
+   *   - side: 'BUY' (Open Long) | 'SELL' (Open Short) | 'CLOSE_LONG' | 'CLOSE_SHORT'
+   *   - type: 'MARKET' (5) | 'LIMIT' (1)
+   *   - price: number (for limit)
+   *   - vol: quantity in contracts / coins
+   *   - leverage: number (e.g. 10)
+   *   - stopLoss: optional SL price
+   *   - takeProfit: optional TP price
+   */
+  async submitOrder(order) {
+    const symbol = MexcClient.normalizeSymbol(order.symbol);
+    
+    // Side mapping: 1: Open Long, 2: Close Short, 3: Open Short, 4: Close Long
+    let mexcSide = 1;
+    if (order.side === 'BUY' || order.side === 'OPEN_LONG') mexcSide = 1;
+    else if (order.side === 'SELL' || order.side === 'OPEN_SHORT') mexcSide = 3;
+    else if (order.side === 'CLOSE_LONG') mexcSide = 4;
+    else if (order.side === 'CLOSE_SHORT') mexcSide = 2;
+
+    const mexcType = (order.type === 'LIMIT' && order.price) ? 1 : 5; // 1=Limit, 5=Market
+
+    const payload = {
+      symbol,
+      side: mexcSide,
+      type: mexcType,
+      vol: parseFloat(order.vol || order.quantity || 1),
+      leverage: parseInt(order.leverage || 10, 10),
+      openType: 1 // 1 = Isolated margin
+    };
+
+    if (mexcType === 1 && order.price) {
+      payload.price = parseFloat(order.price);
+    }
+    if (order.stopLoss) {
+      payload.stopLossPrice = parseFloat(order.stopLoss);
+    }
+    if (order.takeProfit) {
+      payload.takeProfitPrice = parseFloat(order.takeProfit);
+    }
+
+    const res = await this.request('/api/v1/private/order/submit', 'POST', payload);
+    return {
+      success: true,
+      orderId: res.orderId || res,
+      symbol: order.symbol,
+      side: order.side,
+      status: 'SUBMITTED',
+      raw: res
+    };
+  }
+
+  /**
+   * Cancel an open order by ID
+   */
+  async cancelOrder(orderIdList) {
+    const ids = Array.isArray(orderIdList) ? orderIdList : [orderIdList];
+    return await this.request('/api/v1/private/order/cancel', 'POST', ids);
+  }
+
+  /**
+   * Close all positions for a symbol or all symbols
+   */
+  async closePositions(symbol = null) {
+    const positions = await this.getOpenPositions(symbol);
+    const results = [];
+
+    for (const pos of positions) {
+      if (pos.holdVol > 0) {
+        const closeSide = pos.positionType === 'LONG' ? 'CLOSE_LONG' : 'CLOSE_SHORT';
+        const res = await this.submitOrder({
+          symbol: pos.symbol,
+          side: closeSide,
+          type: 'MARKET',
+          vol: pos.holdVol
+        });
+        results.push(res);
+      }
+    }
+
+    return results;
+  }
+}
+
+module.exports = MexcClient;

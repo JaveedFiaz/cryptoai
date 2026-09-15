@@ -1,0 +1,171 @@
+/**
+ * INTRADAY SETUPS & MULTI-PAIR MARKET SCANNER
+ * Background scanner monitoring top crypto futures pairs:
+ * - BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT
+ * Identifies high-probability intraday setups:
+ * - Breakout
+ * - Breakout + Retest
+ * - Liquidity Sweep & Reject
+ * - EMA Pullback (Trend Continuation)
+ * - Market Structure Break (BOS / CHoCH)
+ */
+
+class MarketScanner {
+  constructor(options = {}) {
+    this.symbols = options.symbols || ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT'];
+    this.engine = options.engine; // ScalperEngine instance
+    this.interval = options.interval || '5m';
+    this.setups = [];
+    this.lastScanTime = 0;
+    this.isScanning = false;
+  }
+
+  /**
+   * Scans a single symbol by fetching recent klines and analyzing structure
+   */
+  async scanSymbol(symbol) {
+    try {
+      const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${this.interval}&limit=100`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const raw = await res.json();
+      if (!Array.isArray(raw) || raw.length < 50) return null;
+
+      const candles = raw.map(k => ({
+        time: Math.floor(k[0] / 1000),
+        open: parseFloat(k[1]),
+        high: parseFloat(k[2]),
+        low: parseFloat(k[3]),
+        close: parseFloat(k[4]),
+        volume: parseFloat(k[5])
+      }));
+
+      const analysis = this.engine.analyze(candles);
+      if (!analysis || !analysis.latest) return null;
+
+      const currentPrice = candles[candles.length - 1].close;
+      const latest = analysis.latest;
+      const structure = latest.marketStructure;
+      const sweep = latest.liquiditySweep;
+      const score100 = latest.score100 || 0;
+
+      let setupType = null;
+      let direction = null;
+      let setupDesc = '';
+
+      // 1. Check Liquidity Sweep
+      if (sweep && sweep.isSweep) {
+        if (sweep.sweepType === 'BULLISH_SWEEP') {
+          setupType = 'Liquidity Sweep';
+          direction = 'LONG';
+          setupDesc = sweep.description;
+        } else if (sweep.sweepType === 'BEARISH_SWEEP') {
+          setupType = 'Liquidity Sweep';
+          direction = 'SHORT';
+          setupDesc = sweep.description;
+        }
+      }
+
+      // 2. Check Break of Structure / CHoCH
+      if (!setupType && structure) {
+        if (structure.lastCHoCH) {
+          setupType = 'Change of Character (CHoCH)';
+          direction = structure.lastCHoCH.type.includes('BULLISH') ? 'LONG' : 'SHORT';
+          setupDesc = structure.lastCHoCH.description;
+        } else if (structure.lastBOS) {
+          setupType = 'Break of Structure (BOS)';
+          direction = structure.lastBOS.type.includes('BULLISH') ? 'LONG' : 'SHORT';
+          setupDesc = structure.lastBOS.description;
+        }
+      }
+
+      // 3. Check EMA Pullback
+      if (!setupType && latest.regime.includes('BULLISH')) {
+        const lastCandle = candles[candles.length - 1];
+        const fastEma = analysis.vectors.fastEma[analysis.vectors.fastEma.length - 1];
+        const slowEma = analysis.vectors.slowEma[analysis.vectors.slowEma.length - 1];
+        if (lastCandle.low <= fastEma && lastCandle.close >= fastEma) {
+          setupType = 'EMA Pullback';
+          direction = 'LONG';
+          setupDesc = `Pullback to 20 EMA in active ${latest.regime} trend`;
+        }
+      } else if (!setupType && latest.regime.includes('BEARISH')) {
+        const lastCandle = candles[candles.length - 1];
+        const fastEma = analysis.vectors.fastEma[analysis.vectors.fastEma.length - 1];
+        if (lastCandle.high >= fastEma && lastCandle.close <= fastEma) {
+          setupType = 'EMA Pullback';
+          direction = 'SHORT';
+          setupDesc = `Pullback to 20 EMA in active ${latest.regime} trend`;
+        }
+      }
+
+      // Default fallback setup if trending with solid confluence
+      if (!setupType && score100 >= 65) {
+        setupType = score100 >= 80 ? 'High Confluence Trend' : 'Trend Continuation';
+        direction = latest.regime.includes('BULLISH') ? 'LONG' : (latest.regime.includes('BEARISH') ? 'SHORT' : 'LONG');
+        setupDesc = `Confluence Score: ${score100}/100 with ${latest.regime} momentum`;
+      }
+
+      if (!setupType) return null;
+
+      // Calculate SL & TP
+      const atr = latest.atr || (currentPrice * 0.008);
+      const isLong = direction === 'LONG';
+      const sl = isLong ? currentPrice - (atr * 1.5) : currentPrice + (atr * 1.5);
+      const risk = Math.abs(currentPrice - sl);
+      const tp1 = isLong ? currentPrice + (risk * 1.0) : currentPrice - (risk * 1.0);
+      const tp2 = isLong ? currentPrice + (risk * 2.0) : currentPrice - (risk * 2.0);
+      const rr = risk > 0 ? (Math.abs(tp2 - currentPrice) / risk).toFixed(2) : '1.50';
+
+      let status = 'WAITING FOR ENTRY';
+      if (score100 >= 85) status = 'READY FOR EXECUTION';
+      else if (score100 >= 70) status = 'APPROACHING ZONE';
+
+      return {
+        symbol,
+        setupType,
+        direction,
+        currentPrice,
+        entryZone: `$${(currentPrice * 0.999).toFixed(2)} - $${(currentPrice * 1.001).toFixed(2)}`,
+        sl: parseFloat(sl.toFixed(2)),
+        tp1: parseFloat(tp1.toFixed(2)),
+        tp2: parseFloat(tp2.toFixed(2)),
+        riskReward: `1:${rr}`,
+        score100,
+        status,
+        description: setupDesc,
+        regime: latest.regime,
+        updatedAt: Date.now()
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /**
+   * Runs a complete scan across all configured pairs
+   */
+  async scanAll() {
+    if (this.isScanning) return this.setups;
+    this.isScanning = true;
+
+    const results = [];
+    for (const sym of this.symbols) {
+      const setup = await this.scanSymbol(sym);
+      if (setup) results.push(setup);
+    }
+
+    // Sort by score descending
+    results.sort((a, b) => b.score100 - a.score100);
+    this.setups = results;
+    this.lastScanTime = Date.now();
+    this.isScanning = false;
+    return this.setups;
+  }
+
+  getSetups() {
+    return this.setups;
+  }
+}
+
+module.exports = MarketScanner;

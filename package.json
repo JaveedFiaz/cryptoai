@@ -1,0 +1,22 @@
+{
+  "name": "crypto-scalper-pro",
+  "version": "7.0.0",
+  "description": "Crypto Scalper Pro - High-Frequency Trading Terminal & MEXC Futures Execution Engine",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "crypto",
+    "tradingview",
+    "mexc",
+    "futures",
+    "scalper",
+    "terminal"
+  ],
+  "author": "JaveedFiaz",
+  "license": "MIT"
+}
