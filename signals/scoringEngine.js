@@ -33,7 +33,7 @@
   class ScoringEngine {
     constructor(options = {}) {
       this.options = Object.assign({
-        autoTradeMinScore: 85,
+        autoTradeMinScore: 70,
         defaultMinScore: 75
       }, options);
     }

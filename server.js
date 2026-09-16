@@ -197,6 +197,14 @@ const server = http.createServer(async (req, res) => {
 
   const [reqPath, queryString] = req.url.split('?');
 
+  // Dynamic MEXC credential header override if sent by client
+  const clientApiKey = req.headers['x-mexc-api-key'];
+  const clientApiSecret = req.headers['x-mexc-api-secret'];
+  if (clientApiKey && clientApiSecret && !mexcClient.isConfigured()) {
+    mexcClient.updateCredentials(clientApiKey, clientApiSecret);
+  }
+
+
   // ---------------------------------------------------------------------------
   // SSE Real-Time Stream Endpoint
   // ---------------------------------------------------------------------------

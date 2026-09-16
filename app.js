@@ -1687,9 +1687,6 @@ class ScalperApp {
     };
     this.htfInterval = htfMap[newInterval] || '1h';
     this.engine.resetState();
-    this.activeSignal = null;
-    this.clearSignalPriceLines();
-    this.resetHeroBanner();
 
     if (this.tvWidget) {
       const tvSym = this.getTradingViewSymbol(this.symbol);
@@ -1702,6 +1699,8 @@ class ScalperApp {
     }
 
     await this.connectMarket(this.symbol, this.interval);
+    this.syncPositionChartLines();
+    this.restoreChartDrawings();
   }
 
   // =========================================================================
@@ -2087,6 +2086,7 @@ class ScalperApp {
 
       // Re-apply saved user drawings & position lines so timeframe switches never erase them
       this.applySavedChartDrawings();
+      this.syncPositionChartLines();
 
 
       // When switching pairs, auto-fit content so scales adapt immediately
@@ -2629,6 +2629,28 @@ class ScalperApp {
   // =========================================================================
   // BACKEND STATE SYNCHRONIZATION & TELEMETRY UPDATES
   // =========================================================================
+  getMexcHeaders() {
+    const headers = {};
+    if (this.mexcApiKey && this.mexcApiSecret) {
+      headers['X-Mexc-Api-Key'] = this.mexcApiKey;
+      headers['X-Mexc-Api-Secret'] = this.mexcApiSecret;
+    } else {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('crypto_scalper_mexc_keys');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.apiKey && parsed.apiSecret) {
+              headers['X-Mexc-Api-Key'] = parsed.apiKey;
+              headers['X-Mexc-Api-Secret'] = parsed.apiSecret;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+    return headers;
+  }
+
   updateAccountState(acc) {
     if (!acc) return;
     this.account = acc;
@@ -2647,7 +2669,7 @@ class ScalperApp {
 
   async fetchAccount() {
     try {
-      const res = await fetch(`${API_BASE}/api/account`);
+      const res = await fetch(`${API_BASE}/api/account`, { headers: this.getMexcHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.success && data.account) {
@@ -2665,7 +2687,7 @@ class ScalperApp {
 
   async fetchPositions() {
     try {
-      const res = await fetch(`${API_BASE}/api/positions`);
+      const res = await fetch(`${API_BASE}/api/positions`, { headers: this.getMexcHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.success) {
@@ -3330,7 +3352,7 @@ class ScalperApp {
 
         tr.innerHTML = `
           <td><strong>${p.symbol}</strong></td>
-          <td><span class="${sideClass}">${p.side}</span></td>
+          <td><span class="${sideClass}">${posSide}</span></td>
           <td>${qty}</td>
           <td>$${entryPrice.toFixed(decimals)}</td>
           <td id="pos-mark-${p.id}">$${mark.toFixed(decimals)}</td>

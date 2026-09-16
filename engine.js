@@ -59,7 +59,7 @@ class ScalperEngine {
       
       minBuyScore: 6,
       minSellScore: 6,
-      autoTradeMinScore: 85,
+      autoTradeMinScore: 70,
       signalCooldown: 4,
       
       slMethod: 'ATR', // 'ATR' or 'SWING'
