@@ -908,17 +908,16 @@ class ScalperApp {
   async checkServerAvailability() {
     if (typeof window !== 'undefined' && window.location) {
       if (window.location.protocol === 'file:') return false;
-      const host = window.location.hostname;
-      const isLocalhost = (host === 'localhost' || host === '127.0.0.1');
-      // If deployed on cloud static host (Vercel, Netlify, Surge, Cloudflare Pages, GitHub Pages)
-      if (!isLocalhost && (!window.location.port || window.location.port === '80' || window.location.port === '443')) {
+      const host = window.location.hostname.toLowerCase();
+      // Surge CDN, GitHub Pages, Vercel, Netlify static hosts have no Node backend -> Standalone mode
+      if (host.includes('surge.sh') || host.includes('github.io') || host.includes('vercel.app') || host.includes('netlify.app')) {
         return false;
       }
     }
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
       const res = await fetch(`${API_BASE}/api/instruments`, { signal: controller.signal });
       clearTimeout(timeoutId);
       return res.ok;
@@ -926,6 +925,7 @@ class ScalperApp {
       return false;
     }
   }
+
 
   initStandaloneClientMode() {
     this.isStandaloneMode = true;
@@ -2517,8 +2517,105 @@ class ScalperApp {
   }
 
   // =========================================================================
+  // BACKEND STATE SYNCHRONIZATION & TELEMETRY UPDATES
+  // =========================================================================
+  updateAccountState(acc) {
+    if (!acc) return;
+    this.account = acc;
+    const eq = acc.equity != null ? acc.equity : (acc.balance || 10000);
+    const av = acc.availableBalance != null ? acc.availableBalance : eq;
+    const mr = acc.marginRatio != null ? acc.marginRatio : 0;
+
+    const eqEl = document.getElementById('header-equity');
+    const avEl = document.getElementById('header-avail');
+    const mrEl = document.getElementById('header-margin-ratio');
+
+    if (eqEl) eqEl.textContent = `$${Number(eq).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (avEl) avEl.textContent = `$${Number(av).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (mrEl) mrEl.textContent = `${Number(mr).toFixed(1)}%`;
+  }
+
+  async fetchAccount() {
+    try {
+      const res = await fetch(`${API_BASE}/api/account`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.success && data.account) {
+        this.updateAccountState(data.account);
+      }
+    } catch (e) {
+      console.warn('[App] fetchAccount error:', e.message);
+    }
+  }
+
+  updatePositionsState(positions) {
+    this.positions = Array.isArray(positions) ? positions : [];
+    this.renderPositionsTable();
+  }
+
+  async fetchPositions() {
+    try {
+      const res = await fetch(`${API_BASE}/api/positions`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.success) {
+        this.updatePositionsState(data.positions);
+      }
+    } catch (e) {
+      console.warn('[App] fetchPositions error:', e.message);
+    }
+  }
+
+  updateOrdersState(orders) {
+    this.openOrders = Array.isArray(orders) ? orders : [];
+    this.renderOrdersTable();
+  }
+
+  async fetchOrders() {
+    try {
+      const res = await fetch(`${API_BASE}/api/orders`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.success) {
+        this.updateOrdersState(data.orders);
+      }
+    } catch (e) {
+      console.warn('[App] fetchOrders error:', e.message);
+    }
+  }
+
+  updateTradesState(trades) {
+    this.trades = Array.isArray(trades) ? trades : [];
+    this.renderTradesTable();
+  }
+
+  async fetchTrades() {
+    try {
+      const res = await fetch(`${API_BASE}/api/trades`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.success) {
+        this.updateTradesState(data.trades);
+      }
+    } catch (e) {
+      console.warn('[App] fetchTrades error:', e.message);
+    }
+  }
+
+  async fetchInitialState() {
+    await Promise.all([
+      this.fetchAccount(),
+      this.fetchPositions(),
+      this.fetchOrders(),
+      this.fetchTrades(),
+      this.refreshMexcStatus()
+    ]);
+  }
+
+  // =========================================================================
   // POSITION ACTIONS (CLOSE, PARTIAL CLOSE, MODIFY SL/TP)
   // =========================================================================
+
   async closePosition(positionId) {
     if (!confirm('Are you sure you want to close this position at current market price?')) return;
 
