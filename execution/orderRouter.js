@@ -6,7 +6,7 @@
 
 class OrderRouter {
   constructor(options = {}) {
-    this.mode = options.mode || 'PAPER'; // 'PAPER' or 'MEXC_REAL'
+    this.mode = options.mode || 'MEXC_REAL'; // 'MEXC_REAL' or 'PAPER'
     this.paperBroker = options.paperBroker;
     this.mexcClient = options.mexcClient;
     this.mockExchange = options.mockExchange;

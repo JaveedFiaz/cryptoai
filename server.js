@@ -59,7 +59,7 @@ riskManager.loadState(db);
 
 const executionFilter = new ExecutionFilter(riskManager);
 const orderRouter = new OrderRouter({
-  mode: db.getSettings().autoTradeMode || 'PAPER',
+  mode: db.getSettings().autoTradeMode || 'MEXC_REAL',
   paperBroker: engine,
   mexcClient,
   mockExchange,

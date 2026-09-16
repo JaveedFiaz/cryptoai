@@ -23,7 +23,7 @@ class ScalperApp {
     this.activeMobileTab = 'chart';
     this.activeView = 'terminal';
     this.autoTradingEnabled = false;
-    this.tradingMode = 'PAPER'; // [BUG FIX B3] Default to PAPER — user must explicitly switch to MEXC_REAL
+    this.tradingMode = 'MEXC_REAL'; // Default to MEXC Real Futures Trading Account
     this.autoTradeMinScore = this.loadAutoTradeScore();
     
     // Specifications
@@ -3313,7 +3313,7 @@ class ScalperApp {
     if (!tbody) return;
 
     if (!Array.isArray(this.positions) || this.positions.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="11" class="empty-cell">No open positions. Use the order panel on the right to open a demo trade.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="empty-cell">No active open positions on MEXC Futures account.</td></tr>';
       return;
     }
 

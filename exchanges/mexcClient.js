@@ -200,6 +200,7 @@ class MexcClient {
    * @param {string} symbol Optional symbol filter
    */
   async getOpenPositions(symbol = null) {
+    const params = symbol ? { symbol: MexcClient.normalizeSymbol(symbol) } : {};
     const data = await this.request('/api/v1/private/position/open_positions', 'GET', params);
     const positions = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
     return positions.map(p => {
