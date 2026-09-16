@@ -227,6 +227,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Health Endpoint for Railway healthchecks and observability (Phase 8 & 9)
+  if ((reqPath === '/health' || reqPath === '/api/health') && req.method === 'GET') {
+    const isMexcConnected = typeof mexcClient !== 'undefined' && mexcClient.isConfigured();
+    const hasPriceData = typeof engine !== 'undefined' && engine.prices && Object.keys(engine.prices).length > 0;
+    return sendJSON(res, 200, {
+      status: 'ok',
+      health: 'GREEN',
+      marketData: hasPriceData ? 'CONNECTED' : 'WAITING',
+      mexcConnected: isMexcConnected ? 'AUTHENTICATED' : 'NOT_CONFIGURED',
+      engineMode: typeof orderRouter !== 'undefined' ? orderRouter.mode : 'PAPER',
+      autoTradingEnabled: typeof riskManager !== 'undefined' ? riskManager.autoTradingEnabled : false,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // REST API ENDPOINTS
   // ---------------------------------------------------------------------------
@@ -235,6 +250,7 @@ const server = http.createServer(async (req, res) => {
       if (reqPath === '/api/instruments' && req.method === 'GET') {
         return sendJSON(res, 200, { success: true, instruments: INSTRUMENTS });
       }
+
 
       if (reqPath === '/api/account' && req.method === 'GET') {
         engine.recalculateAccount();
