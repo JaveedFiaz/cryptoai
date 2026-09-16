@@ -36,11 +36,15 @@ class AlertService {
         webhookUrl: ''
       },
       filters: {
-        minScore100: 70, // 0 to 100 scale (Default 70: forwards only signals with score >= 70)
+        // [BUG FIX B13] Default aligned to auto-trade threshold (85) so alerts only fire
+        // for signals that are actually auto-trade eligible. Previously 70 caused confusion —
+        // alerts fired for signals that would never auto-execute.
+        minScore100: 85,
         minScore: 6, // 1 to 8 compatibility
         alertBuySell: true,
         alertExit: false
       }
+
     };
 
     try {

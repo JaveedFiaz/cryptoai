@@ -63,8 +63,9 @@ class MexcClient {
 
   /**
    * Make an authenticated HTTP request to MEXC Contract API
+   * [RF-7 FIX] Added explicit 429 rate-limit detection with exponential backoff (up to 2 retries).
    */
-  async request(endpoint, method = 'GET', params = null) {
+  async request(endpoint, method = 'GET', params = null, _retryCount = 0) {
     if (!this.isConfigured()) {
       throw new Error('MEXC API credentials not configured. Please set MEXC_API_KEY and MEXC_API_SECRET.');
     }
@@ -106,6 +107,18 @@ class MexcClient {
       });
       clearTimeout(timer);
 
+      // [RF-7 FIX] Handle 429 Rate Limit with exponential backoff (max 2 retries)
+      if (response.status === 429 && _retryCount < 2) {
+        const backoffMs = Math.pow(2, _retryCount + 1) * 1000; // 2s, 4s
+        console.warn(`[MEXC] Rate limit hit (429) on ${endpoint}. Retrying in ${backoffMs}ms (attempt ${_retryCount + 1}/2)...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        return this.request(endpoint, method, params, _retryCount + 1);
+      }
+
+      if (response.status === 429) {
+        throw new Error(`MEXC API Rate Limit (429): Too many requests to ${endpoint}. Please reduce request frequency.`);
+      }
+
       const json = await response.json();
       if (!response.ok || (json.code !== 0 && json.success === false)) {
         const errMsg = json.message || json.msg || `HTTP ${response.status}`;
@@ -121,6 +134,7 @@ class MexcClient {
       throw err;
     }
   }
+
 
   // ===========================================================================
   // PUBLIC ENDPOINTS

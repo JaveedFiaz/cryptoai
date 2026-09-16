@@ -143,25 +143,27 @@ class MarketScanner {
   }
 
   /**
-   * Runs a complete scan across all configured pairs
+   * Runs a complete scan across all configured pairs (parallelized)
+   * [BUG FIX B6] Changed from sequential for-loop to Promise.all — reduces worst-case scan from
+   * >18s (6 sequential fetches) to max 3s (all fetches in parallel).
    */
   async scanAll() {
     if (this.isScanning) return this.setups;
     this.isScanning = true;
 
-    const results = [];
-    for (const sym of this.symbols) {
-      const setup = await this.scanSymbol(sym);
-      if (setup) results.push(setup);
+    try {
+      const results = (await Promise.all(this.symbols.map(sym => this.scanSymbol(sym)))).filter(Boolean);
+      results.sort((a, b) => b.score100 - a.score100);
+      this.setups = results;
+      this.lastScanTime = Date.now();
+    } catch (err) {
+      // Silent — scanner errors should never crash the server
+    } finally {
+      this.isScanning = false;
     }
-
-    // Sort by score descending
-    results.sort((a, b) => b.score100 - a.score100);
-    this.setups = results;
-    this.lastScanTime = Date.now();
-    this.isScanning = false;
     return this.setups;
   }
+
 
   getSetups() {
     return this.setups;

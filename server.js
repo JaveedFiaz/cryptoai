@@ -53,6 +53,9 @@ const mockExchange = new MockExchange();
 const riskManager = new RiskManager(db.getSettings());
 // CAPITAL PROTECTION: Auto-trading MUST ALWAYS initialize to false on boot
 riskManager.autoTradingEnabled = false;
+// [RF-6 FIX] Restore emergency stop and circuit breaker state from previous session
+riskManager.loadState(db);
+
 
 const executionFilter = new ExecutionFilter(riskManager);
 const orderRouter = new OrderRouter({
@@ -409,8 +412,19 @@ const server = http.createServer(async (req, res) => {
         const body = await parseJSONBody(req);
         const sym = body.symbol || 'BTCUSDT';
         const price = body.price || engine.prices[sym]?.price || 50000;
+
+        // [BUG FIX B1 / RF-1] Require a real signal object — NEVER inject a fake score.
+        // The old fallback `signal: { score100: 90, htfBullish: true }` allowed any POST
+        // to bypass the execution filter's score check with a phantom A+ score.
+        if (!body.signal || typeof body.signal.score100 !== 'number') {
+          return sendJSON(res, 400, {
+            success: false,
+            error: 'A valid signal object with score100 is required. Manual orders without a signal are rejected to prevent filter bypass.'
+          });
+        }
+
         const result = await orderRouter.routeOrder({
-          signal: body.signal || { score100: 90, sl: body.stopLoss, tp1: body.takeProfit, htfBullish: true },
+          signal: body.signal,
           symbol: sym,
           side: body.side,
           currentPrice: price,
@@ -424,6 +438,7 @@ const server = http.createServer(async (req, res) => {
         });
         return sendJSON(res, 200, result);
       }
+
 
       // POST /api/mexc/close: Close Specific MEXC Position
       if (reqPath === '/api/mexc/close' && req.method === 'POST') {
@@ -458,14 +473,35 @@ const server = http.createServer(async (req, res) => {
         if (body.mode) {
           orderRouter.setMode(body.mode);
         }
+        riskManager.persistState(db); // [RF-6 FIX] Persist after toggle
         broadcastSSE('autotrade_status', riskManager.getStatus());
         return sendJSON(res, 200, { success: true, status: riskManager.getStatus(), mode: orderRouter.mode });
       }
+
+      // POST /api/autotrade/set-score: Update auto-trade minimum score threshold at runtime
+      // [BUG FIX B7] Previously the threshold was seeded from db.getSettings() at startup only.
+      // Changes via UI never reached the server — old threshold stuck until restart.
+      if (reqPath === '/api/autotrade/set-score' && req.method === 'POST') {
+        const body = await parseJSONBody(req);
+        const score = parseInt(body.score, 10);
+        if (isNaN(score) || score < 50 || score > 99) {
+          return sendJSON(res, 400, { success: false, error: 'Score must be between 50 and 99.' });
+        }
+        riskManager.options.defaultAutoTradeMinScore = score;
+        // Persist to settings so it survives restart
+        const settings = db.getSettings();
+        settings.autoTradeMinScore = score;
+        db.saveSettings(settings);
+        return sendJSON(res, 200, { success: true, autoTradeMinScore: score });
+      }
+
+
 
       // POST /api/risk/emergency-stop: Immediate Kill-Switch
       if (reqPath === '/api/risk/emergency-stop' && req.method === 'POST') {
         const body = await parseJSONBody(req);
         const result = riskManager.triggerEmergencyStop(body.reason || 'User Emergency Stop');
+        riskManager.persistState(db); // [RF-6 FIX] Persist so state survives restarts
         broadcastSSE('emergency_stop_triggered', result);
         return sendJSON(res, 200, result);
       }
@@ -473,9 +509,11 @@ const server = http.createServer(async (req, res) => {
       // POST /api/risk/reset-emergency: Reset Kill-Switch
       if (reqPath === '/api/risk/reset-emergency' && req.method === 'POST') {
         const result = riskManager.resetEmergencyStop();
+        riskManager.persistState(db); // [RF-6 FIX] Persist the reset too
         broadcastSSE('emergency_stop_reset', result);
         return sendJSON(res, 200, result);
       }
+
 
       // POST /api/risk/close-all: Close ALL Positions Everywhere
       if (reqPath === '/api/risk/close-all' && req.method === 'POST') {
@@ -699,12 +737,31 @@ server.listen(PORT, '0.0.0.0', () => {
   const localIp = getLocalIp();
   const localUrl = `http://localhost:${PORT}/index.html`;
   const mobileUrl = `http://${localIp}:${PORT}/index.html`;
-  console.log(`\n===================================================`);
-  console.log(`  CRYPTO SCALPER PRO - REAL-TIME DEMO TERMINAL     `);
-  console.log(`===================================================`);
-  console.log(`  Local PC URL:       ${localUrl}`);
-  console.log(`  Mobile / Wi-Fi URL: ${mobileUrl}`);
-  console.log(`  Crypto Futures:     BTC, ETH, SOL, BNB, XRP, DOGE`);
-  console.log(`  Demo Engine:        ACTIVE (Isolated Margin 1x-100x)`);
-  console.log(`===================================================\n`);
+  const isRailway = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_SERVICE_ID);
+
+  console.log(`\n====================================================`);
+  console.log(`  CRYPTO SCALPER PRO — MEXC LIVE TERMINAL v7      `);
+  console.log(`====================================================`);
+  if (isRailway) {
+    // [RF-5 FIX] On Railway, the filesystem is ephemeral — .env writes are lost on redeploy.
+    // Credentials MUST be set as Railway environment variables, not via the UI file-write path.
+    const railwayUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/index.html`
+      : '(check Railway dashboard for public URL)';
+    console.log(`  Environment:        Railway Cloud`);
+    console.log(`  Terminal URL:       ${railwayUrl}`);
+    if (!process.env.MEXC_API_KEY) {
+      console.warn(`  ⚠️  MEXC_API_KEY not set! Set it in Railway → Variables, NOT via UI (ephemeral filesystem).`);
+    } else {
+      console.log(`  MEXC API:           Configured (${process.env.MEXC_API_KEY.slice(0,4)}...${process.env.MEXC_API_KEY.slice(-4)})`);
+    }
+  } else {
+    console.log(`  Local PC URL:       ${localUrl}`);
+    console.log(`  Mobile / Wi-Fi URL: ${mobileUrl}`);
+  }
+  console.log(`  Pairs:              BTC, ETH, SOL, BNB, XRP, DOGE`);
+  console.log(`  Execution Mode:     ${process.env.MEXC_API_KEY ? 'MEXC LIVE FUTURES' : 'PAPER (configure MEXC_API_KEY to go live)'}`);
+  console.log(`  Auto-Trading:       OFF (must be enabled per session)`);
+  console.log(`====================================================\n`);
 });
+

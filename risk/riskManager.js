@@ -179,6 +179,59 @@ class RiskManager {
       autoTradeMinScore: this.options.defaultAutoTradeMinScore
     };
   }
+
+  /**
+   * [RF-6 FIX] Persist safety-critical state to disk so circuit breaker and emergency stop
+   * survive server restarts and Railway redeployments.
+   * @param {Object} db Instance of the Database class from database/db.js
+   */
+  persistState(db) {
+    if (!db) return;
+    try {
+      db.saveRiskState({
+        emergencyStopTriggered: this.emergencyStopTriggered,
+        circuitBreakerTripped: this.circuitBreakerTripped,
+        circuitBreakerReason: this.circuitBreakerReason,
+        consecutiveLosses: this.consecutiveLosses,
+        dailyRealizedPnl: this.dailyRealizedPnl,
+        currentDayUtc: this.currentDayUtc,
+        savedAt: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('[RiskManager] Failed to persist risk state:', e.message);
+    }
+  }
+
+  /**
+   * [RF-6 FIX] Restore safety-critical state from disk on startup.
+   * @param {Object} db Instance of the Database class from database/db.js
+   */
+  loadState(db) {
+    if (!db) return;
+    try {
+      const saved = db.getRiskState();
+      if (!saved || !saved.savedAt) return;
+
+      // Only restore same-day state — daily loss counters reset on a new UTC day
+      const today = new Date().toISOString().slice(0, 10);
+      if (saved.emergencyStopTriggered) {
+        this.emergencyStopTriggered = true;
+        console.warn('[RiskManager] ⚠️  Emergency Stop restored from disk — was active before restart.');
+      }
+      if (saved.circuitBreakerTripped) {
+        this.circuitBreakerTripped = true;
+        this.circuitBreakerReason = saved.circuitBreakerReason || 'Restored from previous session';
+        console.warn(`[RiskManager] ⚠️  Circuit Breaker restored from disk: ${this.circuitBreakerReason}`);
+      }
+      if (saved.currentDayUtc === today) {
+        this.dailyRealizedPnl = saved.dailyRealizedPnl || 0;
+        this.consecutiveLosses = saved.consecutiveLosses || 0;
+      }
+    } catch (e) {
+      console.warn('[RiskManager] Failed to load persisted risk state:', e.message);
+    }
+  }
 }
 
 module.exports = RiskManager;
+

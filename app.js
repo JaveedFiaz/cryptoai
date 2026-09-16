@@ -23,7 +23,7 @@ class ScalperApp {
     this.activeMobileTab = 'chart';
     this.activeView = 'terminal';
     this.autoTradingEnabled = false;
-    this.tradingMode = 'MEXC_REAL';
+    this.tradingMode = 'PAPER'; // [BUG FIX B3] Default to PAPER — user must explicitly switch to MEXC_REAL
     this.autoTradeMinScore = this.loadAutoTradeScore();
     
     // Specifications
@@ -120,9 +120,18 @@ class ScalperApp {
         localStorage.setItem('crypto_scalper_autotrade_min_score', String(num));
       }
     } catch (e) {}
+    // [BUG FIX B7] Sync score to server so server-side threshold updates without restart
+    if (!this.isStandaloneMode) {
+      fetch(`${API_BASE}/api/autotrade/set-score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score: num })
+      }).catch(() => {}); // Fire-and-forget — non-blocking
+    }
     this.updateAutoScoreButton();
     return num;
   }
+
 
   updateAutoScoreButton() {
     const btn = document.getElementById('autotrade-score-btn');
@@ -210,6 +219,11 @@ class ScalperApp {
       await this.fetchInitialState();
     } else {
       this.initStandaloneClientMode();
+      // [BUG FIX RF-4] Force auto-trade OFF every session — never silently restore from localStorage.
+      // In standalone mode there are no server-side risk controls, so auto-trade must be
+      // explicitly re-enabled by the user each session.
+      this.autoTradingEnabled = false;
+
     }
 
     await this.connectMarket(this.symbol, this.interval);
@@ -4581,6 +4595,19 @@ class ScalperApp {
     this.showToast(`🤖 Auto-trade evaluated for ${sym} (${side}, Score: ${signal.score100 || 85}/100)...`, 'info', 3000);
 
     if (this.isStandaloneMode && this.clientEngine) {
+      // [BUG FIX B4 / RF-2] STANDALONE MODE: Real-money MEXC auto-trade is BLOCKED in CDN/standalone mode.
+      // clientEngine.placeOrder() bypasses executionFilter, riskManager, circuit breaker, emergency stop,
+      // max-positions check, and R:R validation entirely. Paper simulation only in this mode.
+      if (this.tradingMode === 'MEXC_REAL') {
+        this.showToast(
+          '🛡️ Auto-trade BLOCKED: Real-money execution requires the Node server (Railway/local). Standalone mode is paper-only.',
+          'error',
+          8000
+        );
+        console.warn('[SAFETY] Real MEXC auto-trade blocked in standalone mode — no risk controls available.');
+        return;
+      }
+      // Paper simulation in standalone mode
       try {
         const spec = this.getInstrumentSpec(sym);
         const minQty = spec ? spec.minQty : 0.001;
@@ -4601,7 +4628,7 @@ class ScalperApp {
           stopLoss: signal.sl,
           takeProfit: signal.tp2 || signal.tp1
         });
-        this.showToast(`🤖 Auto-trade executed on ${sym} ${side} (MEXC Live Futures)`, 'success');
+        this.showToast(`🤖 Paper Auto-trade executed on ${sym} ${side} (Simulation)`, 'success');
         this.updateAccountState(this.clientEngine.state.account);
         this.updatePositionsState(this.clientEngine.state.positions);
       } catch (err) {
@@ -4609,6 +4636,7 @@ class ScalperApp {
       }
       return;
     }
+
 
     try {
       const res = await fetch(`${API_BASE}/api/mexc/order`, {

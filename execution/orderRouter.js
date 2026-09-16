@@ -96,9 +96,34 @@ class OrderRouter {
       };
     }
 
-    // Determine quantity/vol from calculated position size
+    // [BUG FIX B2 / RF-3] NEVER use a silent fallback quantity.
+    // The old code `posSize?.units || (account.equity * 0.05 / price)` could produce
+    // extreme contract sizes on low-priced assets or when SL equals entry price.
+    // If sizing failed, the order is rejected — not silently over-sized.
     const posSize = validation.positionSize;
-    const quantity = posSize?.units || (account?.equity * 0.05 / currentPrice);
+    if (!posSize || !posSize.units || posSize.units <= 0) {
+      const errEntry = {
+        id: 'AUDIT_' + Date.now(),
+        time: Date.now(),
+        symbol,
+        side,
+        mode: this.mode,
+        isAutoTrade,
+        approved: false,
+        status: 'REJECTED',
+        summary: 'Position sizing failed: could not calculate valid contract quantity. Order rejected for capital safety.'
+      };
+      this.auditLogs.unshift(errEntry);
+      if (this.auditLogs.length > 200) this.auditLogs.pop();
+      return {
+        success: false,
+        status: 'REJECTED',
+        error: 'Position sizing failed: invalid SL distance or account data. Order rejected.',
+        auditEntry: errEntry
+      };
+    }
+    const quantity = posSize.units;
+
 
     try {
       let executionResult;
