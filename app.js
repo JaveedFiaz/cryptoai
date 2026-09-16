@@ -2085,6 +2085,10 @@ class ScalperApp {
       // Markers
       this.renderMarkers(analysis.signals);
 
+      // Re-apply saved user drawings & position lines so timeframe switches never erase them
+      this.applySavedChartDrawings();
+
+
       // When switching pairs, auto-fit content so scales adapt immediately
       if (isNewPair) {
         this.chart.timeScale().fitContent();
