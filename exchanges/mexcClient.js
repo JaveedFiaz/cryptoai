@@ -202,22 +202,41 @@ class MexcClient {
   async getOpenPositions(symbol = null) {
     const params = symbol ? { symbol: MexcClient.normalizeSymbol(symbol) } : {};
     const data = await this.request('/api/v1/private/position/open_positions', 'GET', params);
-    const positions = Array.isArray(data) ? data : [];
+    return positions.map(p => {
+      const isLong = (p.positionType === 1 || p.positionType === 'LONG' || p.side === 'LONG' || p.side === 1);
+      const side = isLong ? 'LONG' : 'SHORT';
+      const entryPrice = parseFloat(p.openPrice || p.openAvgPrice || p.holdAvgPrice || p.entryPrice || p.price || 0);
+      const quantity = parseFloat(p.holdVol || p.vol || p.quantity || 0);
+      const liquidationPrice = parseFloat(p.liquidatePrice || p.liquidationPrice || p.liqPrice || 0);
+      const unrealizedPnl = parseFloat(p.unrealizedPnl || p.unrealisedPnl || p.pnl || 0);
+      const margin = parseFloat(p.margin || p.positionMargin || p.im || 0);
+      const leverage = parseInt(p.leverage || 10, 10);
+      const stopLoss = p.stopLossPrice || p.stopLoss || p.sl || null;
+      const takeProfit = p.takeProfitPrice || p.takeProfit || p.tp || null;
 
-    return positions.map(p => ({
-      positionId: p.positionId || `${p.symbol}_${p.positionType}`,
-      symbol: MexcClient.denormalizeSymbol(p.symbol),
-      mexcSymbol: p.symbol,
-      holdVol: parseFloat(p.holdVol || 0),
-      positionType: p.positionType === 1 ? 'LONG' : 'SHORT',
-      openPrice: parseFloat(p.openPrice || p.holdAvgPrice || 0),
-      liquidatePrice: parseFloat(p.liquidatePrice || 0),
-      unrealizedPnl: parseFloat(p.unrealizedPnl || p.unrealisedPnl || 0),
-      leverage: parseInt(p.leverage || 10, 10),
-      margin: parseFloat(p.margin || p.positionMargin || 0),
-      isolated: p.openType === 1
-    }));
+      return {
+        id: p.positionId || `${p.symbol}_${side}`,
+        positionId: p.positionId || `${p.symbol}_${side}`,
+        symbol: MexcClient.denormalizeSymbol(p.symbol),
+        mexcSymbol: p.symbol,
+        side,
+        positionType: side,
+        quantity,
+        holdVol: quantity,
+        entryPrice,
+        openPrice: entryPrice,
+        liquidationPrice,
+        liquidatePrice: liquidationPrice,
+        unrealizedPnl,
+        margin,
+        leverage,
+        stopLoss: stopLoss ? parseFloat(stopLoss) : null,
+        takeProfit: takeProfit ? parseFloat(takeProfit) : null,
+        isolated: p.openType === 1
+      };
+    });
   }
+
 
   /**
    * Submit an order to MEXC Futures

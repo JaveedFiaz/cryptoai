@@ -109,11 +109,11 @@ class ScalperApp {
         }
       }
     } catch (e) {}
-    return 85;
+    return 70;
   }
 
   saveAutoTradeScore(score) {
-    const num = Math.max(50, Math.min(99, parseInt(score, 10) || 85));
+    const num = Math.max(50, Math.min(99, parseInt(score, 10) || 70));
     this.autoTradeMinScore = num;
     try {
       if (typeof localStorage !== 'undefined') {
@@ -132,25 +132,25 @@ class ScalperApp {
     return num;
   }
 
-
   updateAutoScoreButton() {
     const btn = document.getElementById('autotrade-score-btn');
     if (btn) {
-      btn.textContent = `🎯 Score: ${this.autoTradeMinScore || 85}+ ▾`;
+      btn.textContent = `Score: ${this.autoTradeMinScore || 70}+`;
     }
     const preview = document.getElementById('active-score-preview');
     if (preview) {
-      preview.textContent = String(this.autoTradeMinScore || 85);
+      preview.textContent = String(this.autoTradeMinScore || 70);
     }
     const customInput = document.getElementById('custom-autotrade-score');
     if (customInput) {
-      customInput.value = String(this.autoTradeMinScore || 85);
+      customInput.value = String(this.autoTradeMinScore || 70);
     }
     document.querySelectorAll('.score-select-card').forEach(card => {
       const s = parseInt(card.getAttribute('data-score'), 10);
       card.classList.toggle('active', s === this.autoTradeMinScore);
     });
   }
+
 
   updateModeBadge() {
     const badge = document.getElementById('mode-badge');
@@ -2147,6 +2147,112 @@ class ScalperApp {
     this.candleSeries.setMarkers(markers);
   }
 
+  saveChartDrawings() {
+    try {
+      if (typeof localStorage !== 'undefined' && this.chartDrawings) {
+        localStorage.setItem('crypto_scalper_chart_drawings', JSON.stringify(this.chartDrawings));
+      }
+    } catch (e) {}
+  }
+
+  restoreChartDrawings() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('crypto_scalper_chart_drawings');
+        if (saved) {
+          this.chartDrawings = JSON.parse(saved);
+          this.applySavedChartDrawings();
+        }
+      }
+    } catch (e) {}
+  }
+
+  applySavedChartDrawings() {
+    if (!this.candleSeries || !this.chartDrawings) return;
+    if (this.savedPriceLines) {
+      this.savedPriceLines.forEach(l => {
+        try { this.candleSeries.removePriceLine(l); } catch (e) {}
+      });
+    }
+    this.savedPriceLines = [];
+
+    const symbolDrawings = this.chartDrawings[this.symbol] || [];
+    symbolDrawings.forEach(d => {
+      try {
+        const line = this.candleSeries.createPriceLine({
+          price: d.price,
+          color: d.color || '#00d2ff',
+          lineWidth: 2,
+          lineStyle: d.lineStyle || 0,
+          axisLabelVisible: true,
+          title: d.title || 'LEVEL'
+        });
+        this.savedPriceLines.push(line);
+      } catch (e) {}
+    });
+  }
+
+  updateSignalPriceLines(sig) {
+    if (!this.candleSeries || !sig) return;
+
+    if (this.signalPriceLines) {
+      this.signalPriceLines.forEach(l => {
+        try { this.candleSeries.removePriceLine(l); } catch (e) {}
+      });
+    }
+    this.signalPriceLines = [];
+
+    const isBuy = (sig.type === 'BUY');
+    const entryPrice = sig.price || (this.bars[sig.barIndex] ? this.bars[sig.barIndex].close : 0);
+    const slPrice = sig.sl;
+    const tp1Price = sig.tp1;
+
+    if (entryPrice > 0) {
+      const entryLine = this.candleSeries.createPriceLine({
+        price: entryPrice,
+        color: isBuy ? '#00e676' : '#ff3b30',
+        lineWidth: 2,
+        lineStyle: 0,
+        axisLabelVisible: true,
+        title: `${sig.type} ENTRY @ $${entryPrice.toFixed(this.getPriceDecimals())}`
+      });
+      this.signalPriceLines.push(entryLine);
+    }
+
+    if (slPrice > 0) {
+      const slLine = this.candleSeries.createPriceLine({
+        price: slPrice,
+        color: '#ff3b30',
+        lineWidth: 1,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: `STOP LOSS @ $${slPrice.toFixed(this.getPriceDecimals())}`
+      });
+      this.signalPriceLines.push(slLine);
+    }
+
+    if (tp1Price > 0) {
+      const tpLine = this.candleSeries.createPriceLine({
+        price: tp1Price,
+        color: '#00e676',
+        lineWidth: 1,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: `TAKE PROFIT 1 @ $${tp1Price.toFixed(this.getPriceDecimals())}`
+      });
+      this.signalPriceLines.push(tpLine);
+    }
+
+    if (!this.chartDrawings) this.chartDrawings = {};
+    this.chartDrawings[this.symbol] = [
+      { price: entryPrice, color: isBuy ? '#00e676' : '#ff3b30', title: `${sig.type} ENTRY` },
+      ...(slPrice ? [{ price: slPrice, color: '#ff3b30', title: 'STOP LOSS' }] : []),
+      ...(tp1Price ? [{ price: tp1Price, color: '#00e676', title: 'TAKE PROFIT 1' }] : [])
+    ];
+    this.saveChartDrawings();
+  }
+
+
   // =========================================================================
   // TICKER & PRICE DISPLAYS
   // =========================================================================
@@ -3189,19 +3295,21 @@ class ScalperApp {
     this.positions.forEach(p => {
       try {
         const tr = document.createElement('tr');
-        const isLong = (p.side === 'LONG');
+        const posSide = p.side || (p.positionType === 1 ? 'LONG' : (p.positionType === 2 ? 'SHORT' : 'LONG'));
+        const isLong = (posSide === 'LONG');
         const sideClass = isLong ? 'side-long' : 'side-short';
         const decimals = this.getPriceDecimals(p.symbol);
 
         const live = this.livePrices[p.symbol];
-        const entryPrice = Number(p.entryPrice || 0);
+        const entryPrice = Number(p.entryPrice || p.openPrice || p.holdAvgPrice || 0);
         const rawMark = (live && (live.price !== undefined || live.mark !== undefined || live.last !== undefined))
           ? (live.price || live.mark || live.last)
           : entryPrice;
         const mark = Number(rawMark || entryPrice || 0);
-        const qty = Number(p.quantity || 0);
-        const margin = Number(p.margin || 0);
-        const liqPrice = Number(p.liquidationPrice || 0);
+        const qty = Number(p.quantity || p.holdVol || p.vol || 0);
+        const margin = Number(p.margin || p.positionMargin || 0);
+        const liqPrice = Number(p.liquidationPrice || p.liquidatePrice || 0);
+
 
         // Real-time calculation
         const unPnl = (isLong ? mark - entryPrice : entryPrice - mark) * qty;
