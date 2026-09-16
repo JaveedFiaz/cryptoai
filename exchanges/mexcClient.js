@@ -204,13 +204,13 @@ class MexcClient {
     const data = await this.request('/api/v1/private/position/open_positions', 'GET', params);
     const positions = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
     return positions.map(p => {
-      const isLong = (p.positionType === 1 || p.positionType === 'LONG' || p.side === 'LONG' || p.side === 1);
+      const isLong = (p.positionType === 1 || p.positionType === 'LONG' || p.side === 'LONG' || p.side === 1 || p.holdSide === 'LONG' || p.holdSide === 1);
       const side = isLong ? 'LONG' : 'SHORT';
-      const entryPrice = parseFloat(p.openPrice || p.openAvgPrice || p.holdAvgPrice || p.entryPrice || p.price || 0);
-      const quantity = parseFloat(p.holdVol || p.vol || p.quantity || 0);
+      const entryPrice = parseFloat(p.holdAvgPrice || p.openAvgPrice || p.openPrice || p.entryPrice || p.price || 0);
+      const quantity = parseFloat(p.holdVol || p.vol || p.quantity || p.positionAmount || 0);
       const liquidationPrice = parseFloat(p.liquidatePrice || p.liquidationPrice || p.liqPrice || 0);
-      const unrealizedPnl = parseFloat(p.unrealizedPnl || p.unrealisedPnl || p.pnl || 0);
-      const margin = parseFloat(p.margin || p.positionMargin || p.im || 0);
+      const unrealizedPnl = parseFloat(p.unrealised || p.unrealized || p.unrealisedPnl || p.unrealizedPnl || p.pnl || 0);
+      const margin = parseFloat(p.im || p.oim || p.margin || p.positionMargin || 0);
       const leverage = parseInt(p.leverage || 10, 10);
       const stopLoss = p.stopLossPrice || p.stopLoss || p.sl || null;
       const takeProfit = p.takeProfitPrice || p.takeProfit || p.tp || null;
@@ -229,6 +229,7 @@ class MexcClient {
         liquidationPrice,
         liquidatePrice: liquidationPrice,
         unrealizedPnl,
+        unrealised: unrealizedPnl,
         margin,
         leverage,
         stopLoss: stopLoss ? parseFloat(stopLoss) : null,

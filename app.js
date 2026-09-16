@@ -3326,19 +3326,20 @@ class ScalperApp {
         const sideClass = isLong ? 'side-long' : 'side-short';
         const decimals = this.getPriceDecimals(p.symbol);
 
-        const live = this.livePrices[p.symbol];
+        const live = this.livePrices[p.symbol] || (p.mexcSymbol ? this.livePrices[p.mexcSymbol] : null);
         const entryPrice = Number(p.entryPrice || p.openPrice || p.holdAvgPrice || 0);
         const rawMark = (live && (live.price !== undefined || live.mark !== undefined || live.last !== undefined))
           ? (live.price || live.mark || live.last)
           : entryPrice;
         const mark = Number(rawMark || entryPrice || 0);
         const qty = Number(p.quantity || p.holdVol || p.vol || 0);
-        const margin = Number(p.margin || p.positionMargin || 0);
+        const margin = Number(p.margin || p.positionMargin || p.im || 0);
         const liqPrice = Number(p.liquidationPrice || p.liquidatePrice || 0);
 
 
-        // Real-time calculation
-        const unPnl = (isLong ? mark - entryPrice : entryPrice - mark) * qty;
+        // Real-time calculation with API unrealized PnL fallback
+        const calcPnl = (isLong ? mark - entryPrice : entryPrice - mark) * qty;
+        const unPnl = (live && live.price && mark !== entryPrice) ? calcPnl : (Number(p.unrealizedPnl || p.unrealised || 0) || calcPnl);
         const roe = (margin > 0) ? (unPnl / margin) * 100 : 0;
         const pnlClass = unPnl >= 0 ? 'pnl-positive' : 'pnl-negative';
         const sign = unPnl >= 0 ? '+' : '';
@@ -3386,22 +3387,25 @@ class ScalperApp {
     if (!Array.isArray(this.positions)) return;
     this.positions.forEach(p => {
       try {
-        const live = this.livePrices[p.symbol];
-        const entryPrice = Number(p.entryPrice || 0);
+        const live = this.livePrices[p.symbol] || (p.mexcSymbol ? this.livePrices[p.mexcSymbol] : null);
+        const entryPrice = Number(p.entryPrice || p.openPrice || p.holdAvgPrice || 0);
         const rawMark = (live && (live.price !== undefined || live.mark !== undefined || live.last !== undefined))
           ? (live.price || live.mark || live.last)
           : entryPrice;
         const mark = Number(rawMark || entryPrice || 0);
-        const isLong = (p.side === 'LONG');
-        const qty = Number(p.quantity || 0);
-        const margin = Number(p.margin || 0);
-        const unPnl = (isLong ? mark - entryPrice : entryPrice - mark) * qty;
+        const posSide = p.side || (p.positionType === 1 ? 'LONG' : (p.positionType === 2 ? 'SHORT' : 'LONG'));
+        const isLong = (posSide === 'LONG');
+        const qty = Number(p.quantity || p.holdVol || p.vol || 0);
+        const margin = Number(p.margin || p.positionMargin || p.im || 0);
+        
+        const calcPnl = (isLong ? mark - entryPrice : entryPrice - mark) * qty;
+        const unPnl = (live && live.price && mark !== entryPrice) ? calcPnl : (Number(p.unrealizedPnl || p.unrealised || 0) || calcPnl);
         const roe = (margin > 0) ? (unPnl / margin) * 100 : 0;
         const decimals = this.getPriceDecimals(p.symbol);
         const sign = unPnl >= 0 ? '+' : '';
 
         const markEl = document.getElementById(`pos-mark-${p.id}`);
-        if (markEl) markEl.textContent = `$${mark.toFixed(decimals)}`;
+        if (markEl && mark > 0) markEl.textContent = `$${mark.toFixed(decimals)}`;
 
         const pnlEl = document.getElementById(`pos-pnl-${p.id}`);
         if (pnlEl) {
