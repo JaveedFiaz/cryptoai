@@ -4,30 +4,30 @@
    ========================================================================== */
 
 :root {
-  --bg-main: #0b0e14;
-  --bg-card: #131722;
-  --bg-card-hover: #1b2130;
-  --bg-elevated: #1e222d;
-  --border-color: #2a2e39;
-  --border-highlight: #363a45;
+  --bg-main: #080a0f;
+  --bg-card: #11141d;
+  --bg-card-hover: #161a26;
+  --bg-elevated: #1a1e2b;
+  --border-color: #1e2330;
+  --border-highlight: #2c3244;
   
-  --text-primary: #e0e3eb;
-  --text-secondary: #787b86;
-  --text-muted: #50535e;
+  --text-primary: #e6e9f0;
+  --text-secondary: #848999;
+  --text-muted: #525766;
   
   --color-buy: #00e676;
-  --color-buy-bg: rgba(0, 230, 118, 0.12);
-  --color-buy-glow: rgba(0, 230, 118, 0.35);
+  --color-buy-bg: rgba(0, 230, 118, 0.08);
+  --color-buy-glow: transparent;
   
   --color-sell: #ff3b30;
-  --color-sell-bg: rgba(255, 59, 48, 0.12);
-  --color-sell-glow: rgba(255, 59, 48, 0.35);
+  --color-sell-bg: rgba(255, 59, 48, 0.08);
+  --color-sell-glow: transparent;
   
-  --color-gold: #ffd700;
-  --color-cyan: #00d2ff;
+  --color-gold: #e5b800;
+  --color-cyan: #00b8d4;
   --color-orange: #ff9800;
   
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', 'Courier New', monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -46,7 +46,15 @@ body {
   display: flex;
   flex-direction: column;
   user-select: none;
+  font-variant-numeric: tabular-nums;
 }
+
+/* Force tabular-nums for numerical data */
+.ticker-price, .ticker-change, .stat-val, .chip-val, table td, .metric-value, .hero-val, .price-val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 
 /* ==========================================================================
    HEADER BAR
