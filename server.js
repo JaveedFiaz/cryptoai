@@ -210,16 +210,38 @@ const server = http.createServer(async (req, res) => {
     res.write(': connected\n\n');
     sseClients.add(res);
 
-    // Send initial snapshot immediately
+    // Send initial snapshot immediately (dynamically checks MEXC if connected)
+    let accountData = engine.state.account;
+    let positionsData = engine.state.positions;
+    if (mexcClient.isConfigured()) {
+      try {
+        const mexcAssets = await mexcClient.getAccountAssets();
+        accountData = {
+          id: 'mexc-live-account',
+          currency: mexcAssets.currency || 'USDT',
+          balance: parseFloat((mexcAssets.equity - mexcAssets.unrealizedPnl).toFixed(2)),
+          equity: parseFloat(mexcAssets.equity.toFixed(2)),
+          availableBalance: parseFloat(mexcAssets.availableBalance.toFixed(2)),
+          usedMargin: parseFloat(mexcAssets.positionMargin.toFixed(2)),
+          unrealizedPnL: parseFloat(mexcAssets.unrealizedPnl.toFixed(2)),
+          marginRatio: mexcAssets.equity > 0 ? parseFloat(((mexcAssets.positionMargin / mexcAssets.equity) * 100).toFixed(1)) : 0
+        };
+        positionsData = await mexcClient.getOpenPositions().catch(() => engine.state.positions);
+      } catch (e) {
+        console.warn('[SSE] Snapshot MEXC fetch warning:', e.message);
+      }
+    }
+
     const snapshot = {
-      account: engine.state.account,
-      positions: engine.state.positions,
+      account: accountData,
+      positions: positionsData,
       orders: engine.state.orders,
       trades: engine.state.trades.slice(0, 50),
       prices: engine.prices,
       instruments: INSTRUMENTS
     };
     res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`);
+
 
     req.on('close', () => {
       sseClients.delete(res);
@@ -253,13 +275,47 @@ const server = http.createServer(async (req, res) => {
 
 
       if (reqPath === '/api/account' && req.method === 'GET') {
+        if (mexcClient.isConfigured()) {
+          try {
+            const mexcAssets = await mexcClient.getAccountAssets();
+            return sendJSON(res, 200, {
+              success: true,
+              mode: 'MEXC_REAL',
+              account: {
+                id: 'mexc-live-account',
+                startingBalance: mexcAssets.equity,
+                balance: parseFloat((mexcAssets.equity - mexcAssets.unrealizedPnl).toFixed(2)),
+                equity: parseFloat(mexcAssets.equity.toFixed(2)),
+                availableBalance: parseFloat(mexcAssets.availableBalance.toFixed(2)),
+                usedMargin: parseFloat(mexcAssets.positionMargin.toFixed(2)),
+                unrealizedPnL: parseFloat(mexcAssets.unrealizedPnl.toFixed(2)),
+                realizedPnL: 0,
+                totalFees: 0,
+                marginRatio: mexcAssets.equity > 0 ? parseFloat(((mexcAssets.positionMargin / mexcAssets.equity) * 100).toFixed(1)) : 0,
+                currency: mexcAssets.currency || 'USDT',
+                updatedAt: Date.now()
+              }
+            });
+          } catch (e) {
+            console.warn('[Account API] MEXC fetch failed, falling back to paper:', e.message);
+          }
+        }
         engine.recalculateAccount();
-        return sendJSON(res, 200, { success: true, account: engine.state.account });
+        return sendJSON(res, 200, { success: true, mode: 'PAPER', account: engine.state.account });
       }
 
       if (reqPath === '/api/positions' && req.method === 'GET') {
-        return sendJSON(res, 200, { success: true, positions: engine.state.positions });
+        if (mexcClient.isConfigured()) {
+          try {
+            const mexcPositions = await mexcClient.getOpenPositions();
+            return sendJSON(res, 200, { success: true, mode: 'MEXC_REAL', positions: mexcPositions });
+          } catch (e) {
+            console.warn('[Positions API] MEXC fetch failed, falling back to paper:', e.message);
+          }
+        }
+        return sendJSON(res, 200, { success: true, mode: 'PAPER', positions: engine.state.positions });
       }
+
 
       if (reqPath === '/api/orders' && req.method === 'GET') {
         return sendJSON(res, 200, { success: true, orders: engine.state.orders });
