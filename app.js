@@ -1711,7 +1711,27 @@ class ScalperApp {
   // MARKET CONNECTION & DATA STREAMING (HIGH-FREQUENCY REAL-TIME)
   // =========================================================================
   async connectMarket(symbol, interval) {
-    this.updateStatus(`LOADING ${symbol}...`, false);
+    if (symbol) this.symbol = symbol;
+    if (interval) this.interval = interval;
+    this.updateStatus(`LOADING ${this.symbol}...`, false);
+
+    // Update pair pill UI
+    document.querySelectorAll('.pair-pill').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-pair') === this.symbol);
+    });
+
+    // Update TradingView widget if symbol changed
+    if (this.tvWidget) {
+      const tvSym = this.getTradingViewSymbol(this.symbol);
+      const tvInt = this.getTradingViewInterval(this.interval);
+      if (typeof this.tvWidget.setSymbol === 'function') {
+        try { this.tvWidget.setSymbol(tvSym, tvInt); } catch (e) { this.initTradingViewChart(); }
+      } else {
+        this.initTradingViewChart();
+      }
+    } else {
+      this.initTradingViewChart();
+    }
 
     // 1. Detach old sockets
     if (this.activeWs) {
@@ -4394,7 +4414,7 @@ class ScalperApp {
         `;
 
         card.querySelector('.trade-meme-btn')?.addEventListener('click', async () => {
-          await this.connectMarket(item.symbol, this.interval);
+          await this.switchPair(item.symbol);
           this.switchSubnavTab('terminal');
           this.showToast(`🔥 Switched chart to ${item.symbol}`, 'success', 3000);
         });
