@@ -107,10 +107,10 @@
        ======================================================================== -->
   <nav class="terminal-subnav">
     <button class="subnav-tab active" data-tab="terminal">Terminal &amp; Chart</button>
+    <button class="subnav-tab" data-tab="memecoins">🔥 Meme Coin Signals</button>
     <button class="subnav-tab" data-tab="scanner">Intraday Scanner</button>
     <button class="subnav-tab" data-tab="analytics">Performance Analytics</button>
     <button class="subnav-tab" data-tab="backtest">Historical Backtest</button>
-    <button class="subnav-tab" data-tab="audit">Pre-Flight Audit Logs</button>
   </nav>
 
   <!-- ========================================================================
@@ -535,7 +535,26 @@
   </div> <!-- /tab-terminal -->
 
   <!-- ========================================================================
-       TAB PANE 2: INTRADAY SETUPS SCANNER
+       TAB PANE 2: MEME COIN WHALE TRACKER & HIGH ACCURACY SIGNALS
+       ======================================================================== -->
+  <div id="tab-memecoins" class="tab-pane" style="display:none; padding:16px;">
+    <div class="panel-header-bar">
+      <div class="panel-title-group">
+        <span class="panel-main-title">🔥 Meme Coin Whale Tracker &amp; High-Accuracy Signals</span>
+        <span class="panel-subtitle">Real-time volume surge, whale orderflow &amp; liquidity sweep signals for top Meme Coins (PEPE, DOGE, SHIB, FLOKI, BONK, WIF, MEME, SUI)</span>
+      </div>
+      <div class="panel-actions">
+        <span class="status-pill online" id="memecoin-status">WHALE RADAR ACTIVE</span>
+        <button class="ctrl-btn refresh-btn" id="memecoin-refresh-btn">🔄 Scan Meme Coins</button>
+      </div>
+    </div>
+    <div class="scanner-cards-grid" id="memecoin-cards-container">
+      <div class="loading-state-box">Scanning Meme Coins for whale volume spikes, sweeps, and high-confluence entry setups...</div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       TAB PANE 3: INTRADAY SETUPS SCANNER
        ======================================================================== -->
   <div id="tab-scanner" class="tab-pane" style="display:none; padding:16px;">
     <div class="panel-header-bar">

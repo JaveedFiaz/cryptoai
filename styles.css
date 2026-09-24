@@ -544,15 +544,16 @@ body {
   display: none !important;
 }
 
+#tab-memecoins.tab-pane.active,
 #tab-scanner.tab-pane.active,
 #tab-analytics.tab-pane.active,
 #tab-backtest.tab-pane.active,
 #tab-audit.tab-pane.active {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   flex: 1 1 0%;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: auto !important;
 }
 
 /* ==========================================================================

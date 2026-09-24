@@ -4232,17 +4232,17 @@ class ScalperApp {
     });
 
     const tabTerminal = document.getElementById('tab-terminal');
+    const tabMeme = document.getElementById('tab-memecoins');
     const tabScanner = document.getElementById('tab-scanner');
     const tabAnalytics = document.getElementById('tab-analytics');
     const tabBacktest = document.getElementById('tab-backtest');
-    const tabAudit = document.getElementById('tab-audit');
 
     const tabMap = {
       terminal: tabTerminal,
+      memecoins: tabMeme,
       scanner: tabScanner,
       analytics: tabAnalytics,
-      backtest: tabBacktest,
-      audit: tabAudit
+      backtest: tabBacktest
     };
 
     Object.entries(tabMap).forEach(([id, el]) => {
@@ -4260,12 +4260,134 @@ class ScalperApp {
           this.chart.timeScale().scrollToRealTime();
         }
       }
+    } else if (tabId === 'memecoins') {
+      this.refreshMemeCoinTracker();
     } else if (tabId === 'scanner') {
       this.refreshScanner();
     } else if (tabId === 'analytics') {
       this.loadAnalytics();
-    } else if (tabId === 'audit') {
-      this.loadAuditLogs();
+    }
+  }
+
+  async refreshMemeCoinTracker() {
+    const container = document.getElementById('memecoin-cards-container');
+    const refreshBtn = document.getElementById('memecoin-refresh-btn');
+    if (refreshBtn) refreshBtn.classList.add('rotating');
+    if (container) container.innerHTML = '<div class="loading-state-box">⚡ Scanning Meme Coins for Whale Volume Surges, Liquidity Sweeps, and Entry Targets...</div>';
+
+    const memeSymbols = ['PEPEUSDT', 'DOGEUSDT', 'SHIBUSDT', 'FLOKIUSDT', 'BONKUSDT', 'WIFUSDT', 'MEMEUSDT', 'NEIROUSDT', 'POPCATUSDT', 'SUIUSDT'];
+
+    try {
+      const results = await Promise.all(memeSymbols.map(async (symbol) => {
+        try {
+          const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=5m&limit=60`);
+          if (!res.ok) return null;
+          const klines = await res.json();
+          if (!Array.isArray(klines) || klines.length < 30) return null;
+
+          const candles = klines.map(k => ({
+            time: Math.floor(k[0] / 1000),
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5])
+          }));
+
+          const last = candles[candles.length - 1];
+          const prev20 = candles.slice(-21, -1);
+          const avgVol = prev20.reduce((s, c) => s + c.volume, 0) / prev20.length;
+          const volRatio = avgVol > 0 ? (last.volume / avgVol) : 1;
+
+          const firstPrice = candles[candles.length - 6].close;
+          const changePct = ((last.close - firstPrice) / firstPrice) * 100;
+
+          let sumRange = 0;
+          for (let i = candles.length - 15; i < candles.length; i++) {
+            sumRange += (candles[i].high - candles[i].low);
+          }
+          const atr = sumRange / 15;
+          const isBullish = changePct >= 0;
+          const dir = isBullish ? 'LONG' : 'SHORT';
+
+          const entry = last.close;
+          const sl = isBullish ? entry - (atr * 1.5) : entry + (atr * 1.5);
+          const risk = Math.abs(entry - sl);
+          const tp1 = isBullish ? entry + (risk * 1.5) : entry - (risk * 1.5);
+          const tp2 = isBullish ? entry + (risk * 3.0) : entry - (risk * 3.0);
+
+          let score = 70 + Math.min(25, Math.floor(volRatio * 8));
+          if (score > 98) score = 98;
+
+          const decimals = entry < 0.01 ? 8 : (entry < 1 ? 4 : 2);
+
+          return {
+            symbol,
+            price: entry,
+            changePct,
+            volRatio,
+            dir,
+            entry,
+            sl,
+            tp1,
+            tp2,
+            score,
+            decimals
+          };
+        } catch (e) {
+          return null;
+        }
+      }));
+
+      const valid = results.filter(Boolean).sort((a, b) => b.score - a.score);
+
+      if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
+      if (!container) return;
+
+      if (valid.length === 0) {
+        container.innerHTML = '<div class="loading-state-box">No active Meme Coin setups detected right now.</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      valid.forEach(item => {
+        const card = document.createElement('div');
+        card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
+        const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
+        const whaleBadge = item.volRatio >= 2.0 
+          ? `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 WHALE SPIKE ${item.volRatio.toFixed(1)}x</span>`
+          : `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`;
+
+        card.innerHTML = `
+          <div class="setup-card-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
+              <span style="font-size:12px; font-weight:700; color:${item.changePct >= 0 ? '#00e676' : '#ff3b30'};">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</span>
+            </div>
+            ${whaleBadge}
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
+            <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${item.score}/100)</span>
+            <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">$${item.price.toFixed(item.decimals)}</span>
+          </div>
+          <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;">
+            <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">$${item.sl.toFixed(item.decimals)}</b></div>
+            <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">$${item.tp1.toFixed(item.decimals)}</b></div>
+            <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">$${item.tp2.toFixed(item.decimals)}</b></div>
+          </div>
+          <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:linear-gradient(135deg, ${dirColor}, #10141f); border:1px solid ${dirColor}; color:#fff;">⚡ Trade ${item.symbol} Now</button>
+        `;
+
+        card.querySelector('.trade-meme-btn')?.addEventListener('click', async () => {
+          await this.connectMarket(item.symbol, this.interval);
+          this.switchSubnavTab('terminal');
+          this.showToast(`🔥 Switched chart & order panel to ${item.symbol}`, 'success', 3000);
+        });
+
+        container.appendChild(card);
+      });
+    } catch (e) {
+      if (container) container.innerHTML = `<div class="loading-state-box">Meme coin scanner error: ${e.message}</div>`;
     }
   }
 
