@@ -284,9 +284,27 @@
       breakdown.entry = entryScore;
 
       // -----------------------------------------------------------------------
+      // 8. GOLD SESSION KILLZONE & INSTITUTIONAL VOLATILITY BOOST (Max: 15 pts)
+      // -----------------------------------------------------------------------
+      let goldSessionScore = 0;
+      if (data.isGold || data.symbol === 'PAXGUSDT' || data.symbol === 'XAUUSD') {
+        const utcHour = (new Date()).getUTCHours();
+        if (utcHour >= 7 && utcHour < 10) {
+          goldSessionScore = 15;
+          reasons.push('London Killzone Active 🇬🇧 (+15 Liquidity Boost)');
+        } else if (utcHour >= 13 && utcHour < 16) {
+          goldSessionScore = 15;
+          reasons.push('New York Killzone Active 🇺🇸 (+15 Liquidity Boost)');
+        } else if (utcHour >= 16 && utcHour < 21) {
+          goldSessionScore = 8;
+          reasons.push('New York Session Active 🇺🇸 (+8 Liquidity Boost)');
+        }
+      }
+
+      // -----------------------------------------------------------------------
       // TOTAL SCORE & CLASSIFICATION
       // -----------------------------------------------------------------------
-      const totalScore = trendScore + structureScore + momentumScore + volumeScore + liquidityScore + mtfScore + entryScore;
+      const totalScore = trendScore + structureScore + momentumScore + volumeScore + liquidityScore + mtfScore + entryScore + goldSessionScore;
 
       let classification = 'NO_TRADE';
       let confidence = 'LOW';

@@ -39,6 +39,7 @@
         <button class="pair-pill" data-pair="BNBUSDT">BNB</button>
         <button class="pair-pill" data-pair="XRPUSDT">XRP</button>
         <button class="pair-pill" data-pair="DOGEUSDT">DOGE</button>
+        <button class="pair-pill gold-pill" data-pair="PAXGUSDT" style="border-color:#ffd700; color:#ffd700;">🏆 GOLD</button>
       </div>
       <input type="text" id="custom-pair-input" class="custom-pair-input" placeholder="+ PAIR" title="Enter any symbol, e.g. PEPE, SUI, ADA">
 
@@ -107,6 +108,7 @@
        ======================================================================== -->
   <nav class="terminal-subnav">
     <button class="subnav-tab active" data-tab="terminal">Terminal &amp; Chart</button>
+    <button class="subnav-tab" data-tab="gold" style="color:#ffd700; font-weight:700;">🏆 Gold Terminal (XAU)</button>
     <button class="subnav-tab" data-tab="memecoins">🔥 Meme Coin Signals</button>
     <button class="subnav-tab" data-tab="scanner">Intraday Scanner</button>
     <button class="subnav-tab" data-tab="analytics">Performance Analytics</button>
@@ -533,6 +535,68 @@
   </div> <!-- /tab-terminal -->
 
   <!-- ========================================================================
+       TAB PANE: DEDICATED GOLD (XAU/USD) INSTITUTIONAL TERMINAL
+       ======================================================================== -->
+  <div id="tab-gold" class="tab-pane" style="display:none; padding:16px;">
+    <div class="panel-header-bar" style="background:#131722; border-bottom:2px solid #ffd700;">
+      <div class="panel-title-group">
+        <span class="panel-main-title" style="color:#ffd700; font-size:16px;">🏆 Gold (XAU/USD) Institutional Signal Terminal</span>
+        <span class="panel-subtitle">High-accuracy Gold scalping &amp; intraday confluence engine powered by London/NY killzones, ATR volatility bands &amp; institutional orderflow</span>
+      </div>
+      <div class="panel-actions">
+        <span class="status-pill online" id="gold-killzone-badge" style="background:rgba(255,215,0,0.15); color:#ffd700; border:1px solid #ffd700;">LONDON KILLZONE ACTIVE (+15 BOOST)</span>
+        <button class="ctrl-btn refresh-btn" id="gold-refresh-btn" style="border-color:#ffd700; color:#ffd700;">🔄 Refresh Gold Signal</button>
+      </div>
+    </div>
+
+    <!-- Gold Market Telemetry Header Card -->
+    <div class="gold-telemetry-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin:12px 0;">
+      <div class="kpi-card" style="border-top:2px solid #ffd700;">
+        <span class="kpi-lbl">GOLD SPOT PRICE (USD/OZ)</span>
+        <span class="kpi-val" id="gold-spot-price" style="color:#ffd700;">$2,745.50</span>
+        <span class="kpi-sub" id="gold-spot-change">+0.45% (+$12.30)</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">SESSION STATUS</span>
+        <span class="kpi-val" id="gold-session-val" style="color:#38ef7d; font-size:14px;">NY Open (Peak Liquidity)</span>
+        <span class="kpi-sub" id="gold-session-sub">Killzone Volatility: HIGH</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">24H RANGE</span>
+        <span class="kpi-val" id="gold-range-val" style="font-size:13px;">$2,728 - $2,752</span>
+        <span class="kpi-sub" id="gold-atr-val">ATR (14): $8.40/oz</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-lbl">TARGET WIN RATE</span>
+        <span class="kpi-val success" id="gold-winrate-val">88.5%</span>
+        <span class="kpi-sub">80+ Confluence Filter</span>
+      </div>
+    </div>
+
+    <!-- Main Gold Signal & Chart Container -->
+    <div class="gold-main-grid" style="display:grid; grid-template-columns: minmax(320px, 380px) 1fr; gap:16px; margin-top:12px;">
+      <!-- Left Column: Gold Signal Card -->
+      <div id="gold-signal-card-container">
+        <!-- Rendered dynamically by app.js refreshGoldTracker() -->
+      </div>
+      <!-- Right Column: Interactive Gold Chart -->
+      <div class="gold-chart-wrapper" style="background:#0b0e14; border:1px solid #1e2330; border-radius:8px; overflow:hidden; display:flex; flex-direction:column; min-height:560px;">
+        <div class="chart-indicators-bar" style="background:#11141d; padding:6px 12px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e2330;">
+          <span style="font-weight:700; font-size:12px; color:#ffd700;">📈 XAU/USD (Gold Spot &amp; Futures) Interactive Chart</span>
+          <div style="display:flex; gap:6px;">
+            <button class="chart-ctrl-btn active" id="gold-chart-tf-1m">1m</button>
+            <button class="chart-ctrl-btn" id="gold-chart-tf-5m">5m</button>
+            <button class="chart-ctrl-btn" id="gold-chart-tf-15m">15m</button>
+          </div>
+        </div>
+        <div id="gold-tradingview-container" style="width:100%; height:100%; min-height:500px; flex:1;">
+          <!-- Embedded TV Widget for OANDA:XAUUSD / BINANCE:PAXGUSDT -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
        TAB PANE 2: MEME COIN WHALE TRACKER & HIGH ACCURACY SIGNALS
        ======================================================================== -->
   <div id="tab-memecoins" class="tab-pane" style="display:none; padding:16px;">
@@ -744,6 +808,10 @@
     <button class="mobile-nav-btn active" data-mobile-tab="chart">
       <span class="mobile-nav-icon">📊</span>
       <span class="mobile-nav-label">Chart</span>
+    </button>
+    <button class="mobile-nav-btn" data-mobile-tab="gold">
+      <span class="mobile-nav-icon">🏆</span>
+      <span class="mobile-nav-label">Gold</span>
     </button>
     <button class="mobile-nav-btn" data-mobile-tab="memecoins">
       <span class="mobile-nav-icon">🔥</span>
