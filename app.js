@@ -4324,23 +4324,25 @@ class ScalperApp {
             volume: parseFloat(k[5])
           }));
 
-          const last = candles[candles.length - 1];
-          const prev20 = candles.slice(-21, -1);
+          // Lock evaluation strictly on the last COMPLETED & CONFIRMED candle (candles.length - 2)
+          // This eliminates repainting / mid-candle direction flipping
+          const confirmedBar = candles[candles.length - 2];
+          const prev20 = candles.slice(-22, -2);
           const avgVol = prev20.reduce((s, c) => s + c.volume, 0) / prev20.length;
-          const volRatio = avgVol > 0 ? (last.volume / avgVol) : 1;
+          const volRatio = avgVol > 0 ? (confirmedBar.volume / avgVol) : 1;
 
-          const firstPrice = candles[candles.length - 6].close;
-          const changePct = ((last.close - firstPrice) / firstPrice) * 100;
+          const firstPrice = candles[candles.length - 7].close;
+          const changePct = ((confirmedBar.close - firstPrice) / firstPrice) * 100;
 
           let sumRange = 0;
-          for (let i = candles.length - 15; i < candles.length; i++) {
+          for (let i = candles.length - 17; i < candles.length - 2; i++) {
             sumRange += (candles[i].high - candles[i].low);
           }
           const atr = sumRange / 15;
           const isBullish = changePct >= 0;
           const dir = isBullish ? 'LONG' : 'SHORT';
 
-          const entry = last.close;
+          const entry = confirmedBar.close;
           const sl = isBullish ? entry - (atr * 1.5) : entry + (atr * 1.5);
           const risk = Math.abs(entry - sl);
           const tp1 = isBullish ? entry + (risk * 1.5) : entry - (risk * 1.5);
