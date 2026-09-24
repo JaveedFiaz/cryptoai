@@ -2611,28 +2611,33 @@ body {
 }
 
 @media (max-width: 860px) {
+  /* 1. APP HEADER: Ultra-sleek single row (42px) */
   .app-header {
-    height: 48px !important;
-    padding: 4px 8px !important;
+    height: 42px !important;
+    padding: 0 10px !important;
     flex-wrap: nowrap !important;
     justify-content: space-between !important;
-    gap: 4px !important;
+    align-items: center !important;
+    background: #0b0e14 !important;
+    border-bottom: 1px solid #1e2330 !important;
   }
   
   .brand-badge span {
     font-size: 11px !important;
-    letter-spacing: 0px !important;
+    letter-spacing: 0.2px !important;
   }
 
-  .mexc-live-badge {
+  .mexc-live-badge, .header-account-bar, .live-ticker-bar, .tf-pills {
     display: none !important;
   }
 
   .market-nav {
     width: auto !important;
-    max-width: 55% !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
+    max-width: 45% !important;
+  }
+
+  .pair-pills {
+    padding: 1px !important;
   }
 
   .pair-pill {
@@ -2640,80 +2645,122 @@ body {
     font-size: 10px !important;
   }
 
-  .tf-pills {
-    display: none !important;
-  }
-
-  .live-ticker-bar {
-    display: none !important;
+  .custom-pair-input {
+    width: 54px !important;
+    font-size: 10px !important;
+    padding: 2px 4px !important;
   }
 
   .controls-section {
     gap: 4px !important;
   }
 
-  .controls-section .ctrl-btn:not(.active):not(#sound-toggle-btn) {
-    padding: 4px 6px !important;
+  .controls-section .ctrl-btn {
+    padding: 3px 7px !important;
     font-size: 10px !important;
+    height: 26px !important;
   }
 
-  /* Compact Hero Banner on Mobile */
-  .hero-signal-bar {
-    padding: 4px 8px !important;
-    gap: 4px !important;
-    border-radius: 0 !important;
-  }
-
-  .hero-signal-summary, .hero-reasons-container {
+  #close-all-btn, #connection-status {
     display: none !important;
   }
 
-  .hero-signal-left {
+  /* 2. HIDE TOP SUBNAV ON MOBILE (Bottom nav replaces top subnav 100%) */
+  .terminal-subnav {
+    display: none !important;
+  }
+
+  /* 3. HERO SIGNAL BAR: Sleek single compact bar on mobile */
+  .hero-signal-bar {
+    padding: 4px 8px !important;
+    min-height: 28px !important;
     gap: 4px !important;
+    border-radius: 0 !important;
+    background: #11141d !important;
+  }
+
+  .hero-signal-left {
+    width: auto !important;
+    gap: 6px !important;
+  }
+
+  .hero-signal-summary, .hero-reasons-container, .hero-share-actions {
+    display: none !important;
+  }
+
+  .hero-status-pulse {
+    width: 6px !important;
+    height: 6px !important;
+  }
+
+  .hero-signal-badge {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
   }
 
   .hero-signal-pair {
     font-size: 11px !important;
   }
 
+  .hero-signal-right {
+    width: auto !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
   .hero-score-100-box {
-    padding: 2px 4px !important;
+    padding: 1px 5px !important;
   }
 
   .score-100-num {
-    font-size: 14px !important;
+    font-size: 13px !important;
   }
 
   .hero-level-chip {
     padding: 2px 4px !important;
-    min-width: 48px !important;
+    min-width: 44px !important;
+    background: rgba(255,255,255,0.03) !important;
+    border-radius: 3px !important;
   }
 
   .hero-level-chip .chip-label {
-    font-size: 8px !important;
+    font-size: 7px !important;
+    letter-spacing: 0px !important;
   }
 
   .hero-level-chip .chip-val {
+    font-size: 9px !important;
+  }
+
+  /* 4. CHART TOOLBAR & VIEWPORT: Takes 100% of remaining screen height */
+  .chart-indicators-bar {
+    padding: 2px 6px !important;
+    height: 32px !important;
+    background: #0b0e14 !important;
+  }
+
+  .chart-engine-tabs {
+    padding: 1px !important;
+  }
+
+  .chart-engine-btn {
+    padding: 2px 6px !important;
     font-size: 10px !important;
   }
 
-  /* Terminal & Viewpanes */
-  .terminal-subnav {
-    padding: 0 8px !important;
-    gap: 4px !important;
+  .chart-ctrl-btn {
+    padding: 2px 6px !important;
+    font-size: 10px !important;
+    height: 24px !important;
   }
 
-  .subnav-tab {
-    padding: 8px 10px !important;
-    font-size: 11px !important;
-  }
-
-  .trading-dock {
+  .tv-hint-text {
     display: none !important;
   }
 
   #tab-terminal.tab-pane.active {
-    height: calc(100vh - 105px) !important;
+    height: calc(100vh - 125px) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
@@ -2734,25 +2781,17 @@ body {
 
   #tv-chart-viewport, #tradingview_chart, #chart-container {
     height: 100% !important;
-    min-height: 240px !important;
+    min-height: 280px !important;
     flex: 1 1 0% !important;
   }
 
-  .chart-indicators-bar {
-    padding: 3px 6px !important;
-    gap: 4px !important;
-  }
-
-  .chart-engine-btn, .chart-ctrl-btn {
-    padding: 3px 6px !important;
-    font-size: 10px !important;
-  }
-
-  .tv-hint-text {
+  /* Hide bottom table panel on mobile when in chart view so chart gets max space */
+  body.mobile-tab-chart .bottom-panel,
+  body.mobile-tab-chart .terminal-bottom-panel {
     display: none !important;
   }
 
-  /* Meme Coin & Scanner Cards Grid on Mobile */
+  /* 5. MEME COIN & SCANNER CARDS ON MOBILE */
   #tab-memecoins, #tab-scanner, #tab-analytics, #tab-backtest, #tab-audit {
     padding: 10px !important;
     margin-bottom: 60px !important;
@@ -2764,30 +2803,43 @@ body {
   }
 
   .setup-card {
-    padding: 10px !important;
-    gap: 8px !important;
+    padding: 12px !important;
+    gap: 10px !important;
+    background: #11141d !important;
+    border: 1px solid #1e2330 !important;
+    border-radius: 8px !important;
   }
 
   .setup-targets-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 6px !important;
-    font-size: 10px !important;
+    font-size: 11px !important;
+    background: #080a0f !important;
+    padding: 8px !important;
   }
 
   .trade-meme-btn {
     height: 44px !important;
     font-size: 13px !important;
+    font-weight: 800 !important;
     border-radius: 6px !important;
   }
 
-  /* Fixed Mobile Bottom Bar */
+  /* 6. FIXED BOTTOM MOBILE NAVIGATION BAR */
   .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
     height: 52px !important;
     background: #0b0e14 !important;
     border-top: 1px solid #1e2330 !important;
+    z-index: 2000 !important;
   }
 
   .mobile-nav-btn {
+    flex: 1 !important;
     padding: 4px 0 !important;
   }
 
