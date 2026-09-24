@@ -2612,63 +2612,117 @@ body {
 
 @media (max-width: 860px) {
   .app-header {
-    height: auto;
-    padding: 6px 10px;
-    flex-wrap: wrap;
-    gap: 6px;
+    height: 48px !important;
+    padding: 4px 8px !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
   }
   
   .brand-badge span {
-    font-size: 11px;
-  }
-  
-  .market-nav {
-    width: 100%;
-    justify-content: space-between;
-    overflow-x: auto;
+    font-size: 11px !important;
+    letter-spacing: 0px !important;
   }
 
-  .live-ticker-bar {
-    width: 100%;
-    justify-content: space-between;
-    padding: 3px 6px;
-  }
-
-  .ticker-item.stats-sub {
-    display: none;
-  }
-
-  .hero-signal-bar {
-    padding: 6px 10px;
-    gap: 6px;
-  }
-
-  .hero-signal-summary {
+  .mexc-live-badge {
     display: none !important;
   }
 
+  .market-nav {
+    width: auto !important;
+    max-width: 55% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .pair-pill {
+    padding: 3px 6px !important;
+    font-size: 10px !important;
+  }
+
+  .tf-pills {
+    display: none !important;
+  }
+
+  .live-ticker-bar {
+    display: none !important;
+  }
+
+  .controls-section {
+    gap: 4px !important;
+  }
+
+  .controls-section .ctrl-btn:not(.active):not(#sound-toggle-btn) {
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+  }
+
+  /* Compact Hero Banner on Mobile */
+  .hero-signal-bar {
+    padding: 4px 8px !important;
+    gap: 4px !important;
+    border-radius: 0 !important;
+  }
+
+  .hero-signal-summary, .hero-reasons-container {
+    display: none !important;
+  }
+
+  .hero-signal-left {
+    gap: 4px !important;
+  }
+
+  .hero-signal-pair {
+    font-size: 11px !important;
+  }
+
   .hero-score-100-box {
-    padding: 2px 6px;
+    padding: 2px 4px !important;
   }
 
   .score-100-num {
-    font-size: 16px;
+    font-size: 14px !important;
+  }
+
+  .hero-level-chip {
+    padding: 2px 4px !important;
+    min-width: 48px !important;
+  }
+
+  .hero-level-chip .chip-label {
+    font-size: 8px !important;
+  }
+
+  .hero-level-chip .chip-val {
+    font-size: 10px !important;
+  }
+
+  /* Terminal & Viewpanes */
+  .terminal-subnav {
+    padding: 0 8px !important;
+    gap: 4px !important;
+  }
+
+  .subnav-tab {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
   }
 
   .trading-dock {
     display: none !important;
   }
 
-  .main-workspace {
-    height: calc(100vh - 165px) !important;
-    min-height: 0 !important;
+  #tab-terminal.tab-pane.active {
+    height: calc(100vh - 105px) !important;
+    display: flex !important;
+    flex-direction: column !important;
     overflow: hidden !important;
   }
 
-  #tab-terminal.tab-pane.active {
-    height: calc(100vh - 145px) !important;
-    display: flex !important;
-    flex-direction: column !important;
+  .main-workspace {
+    height: 100% !important;
+    min-height: 0 !important;
+    flex: 1 1 0% !important;
     overflow: hidden !important;
   }
 
@@ -2680,23 +2734,69 @@ body {
 
   #tv-chart-viewport, #tradingview_chart, #chart-container {
     height: 100% !important;
-    min-height: 280px !important;
+    min-height: 240px !important;
     flex: 1 1 0% !important;
   }
 
   .chart-indicators-bar {
-    overflow-x: auto;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    padding: 4px 8px;
+    padding: 3px 6px !important;
+    gap: 4px !important;
+  }
+
+  .chart-engine-btn, .chart-ctrl-btn {
+    padding: 3px 6px !important;
+    font-size: 10px !important;
   }
 
   .tv-hint-text {
     display: none !important;
   }
 
+  /* Meme Coin & Scanner Cards Grid on Mobile */
+  #tab-memecoins, #tab-scanner, #tab-analytics, #tab-backtest, #tab-audit {
+    padding: 10px !important;
+    margin-bottom: 60px !important;
+  }
+
   .scanner-cards-grid {
     grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .setup-card {
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+
+  .setup-targets-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    font-size: 10px !important;
+  }
+
+  .trade-meme-btn {
+    height: 44px !important;
+    font-size: 13px !important;
+    border-radius: 6px !important;
+  }
+
+  /* Fixed Mobile Bottom Bar */
+  .mobile-bottom-nav {
+    height: 52px !important;
+    background: #0b0e14 !important;
+    border-top: 1px solid #1e2330 !important;
+  }
+
+  .mobile-nav-btn {
+    padding: 4px 0 !important;
+  }
+
+  .mobile-nav-icon {
+    font-size: 16px !important;
+  }
+
+  .mobile-nav-label {
+    font-size: 9px !important;
   }
 }
 

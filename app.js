@@ -224,14 +224,14 @@ class ScalperApp {
       this.symbol = savedSymbol;
     }
 
-    this.switchMobileTab('chart');
+    const initialTab = savedTab || 'terminal';
     this.initChart();
     this.initTradingViewChart();
     this.initInstitutionalFeatures();
 
-    if (savedTab) {
-      this.switchSubnavTab(savedTab);
-    }
+    this.switchSubnavTab(initialTab);
+    const initialMobileTab = (initialTab === 'memecoins') ? 'memecoins' : ((initialTab === 'scanner') ? 'scanner' : (initialTab === 'analytics' ? 'analytics' : 'chart'));
+    this.switchMobileTab(initialMobileTab);
 
     const serverAvailable = await this.checkServerAvailability();
     if (serverAvailable) {
@@ -1461,13 +1461,14 @@ class ScalperApp {
         withdateranges: true,
         save_image: true,
         studies: [],
-        disabled_features: ['create_volume_indicator_by_default'],
+        disabled_features: ['create_volume_indicator_by_default', 'volume_force_overlay'],
         overrides: {
           'paneProperties.background': '#0b0e14',
           'paneProperties.vertGridProperties.color': 'rgba(42, 46, 57, 0.35)',
           'paneProperties.horzGridProperties.color': 'rgba(42, 46, 57, 0.35)',
           'symbolWatermarkProperties.transparency': 90,
           'scalesProperties.textColor': '#787b86',
+          'mainSeriesProperties.showVolume': false,
           'mainSeriesProperties.candleStyle.upColor': '#00e676',
           'mainSeriesProperties.candleStyle.downColor': '#ff3b30',
           'mainSeriesProperties.candleStyle.borderUpColor': '#00e676',
