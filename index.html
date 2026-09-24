@@ -27,7 +27,7 @@
         <div class="pulse-dot"></div>
         <span>CRYPTO SCALPER PRO</span>
       </div>
-      <span id="mode-badge" class="mexc-live-badge" title="Active Execution Mode: MEXC Live Futures">MEXC LIVE</span>
+      <span id="mode-badge" class="mexc-live-badge" title="Active Signal Engine Mode: High-Confluence Signals">⚡ SIGNAL TERMINAL</span>
     </div>
 
     <!-- Pair & Timeframe Selector -->
@@ -75,26 +75,26 @@
       <span id="candle-timer" class="candle-timer">0:00</span>
     </div>
 
-    <!-- Header Live Account Summary & Controls -->
-    <div class="header-account-bar">
-      <div class="acc-chip" title="Wallet Equity (Balance + Unrealized PnL)">
+    <!-- Header Account Summary & Controls (Hidden for Signal Terminal) -->
+    <div class="header-account-bar" style="display:none !important;">
+      <div class="acc-chip">
         <span class="chip-title">Equity</span>
         <span id="header-equity" class="chip-val">$10,000.00</span>
       </div>
-      <div class="acc-chip" title="Available for new positions">
+      <div class="acc-chip">
         <span class="chip-title">Available</span>
         <span id="header-avail" class="chip-val">$10,000.00</span>
       </div>
-      <div class="acc-chip" title="Total Used Margin / Equity">
+      <div class="acc-chip">
         <span class="chip-title">Margin Ratio</span>
         <span id="header-margin-ratio" class="chip-val">0.0%</span>
       </div>
-      <button id="header-sync-btn" class="ctrl-btn sync-btn" title="Sync MEXC Account Balance & Open Positions">Sync</button>
+      <button id="header-sync-btn" class="ctrl-btn sync-btn">Sync</button>
     </div>
 
     <!-- Clean Manual Scalper Controls -->
     <div class="controls-section">
-      <button id="close-all-btn" class="ctrl-btn close-all-btn" title="Market Close All Open Positions">CLOSE ALL</button>
+      <button id="close-all-btn" class="ctrl-btn close-all-btn" style="display:none !important;">CLOSE ALL</button>
       <button id="fullscreen-btn" class="ctrl-btn fullscreen-btn" title="Toggle Fullscreen Mode (F11)">Fullscreen</button>
       <button id="sound-toggle-btn" class="ctrl-btn active" title="Toggle audio chime">Sound</button>
       <button id="settings-btn" class="ctrl-btn" title="Configure Scalper Parameters">Settings</button>
@@ -259,7 +259,7 @@
     <!-- ======================================================================
          PROMINENT MEXC-STYLE DEMO TRADING PANEL (ORDER ENTRY DOCK)
          ====================================================================== -->
-    <aside class="trading-dock" id="trading-dock">
+    <aside class="trading-dock" id="trading-dock" style="display:none !important;">
       <div class="dock-header">
         <div class="dock-title-row">
           <span class="dock-title">MEXC FUTURES</span>
@@ -373,35 +373,33 @@
   <section class="bottom-panel">
     <div class="panel-tabs">
       <div class="tab-buttons">
-        <button class="tab-btn active" data-tab="tab-positions">
-          Positions <span id="pos-badge-count" class="tab-badge">0</span>
-        </button>
-        <button class="tab-btn" data-tab="tab-orders">
-          Open Orders <span id="orders-badge-count" class="tab-badge">0</span>
-        </button>
-        <button class="tab-btn" data-tab="tab-trades">
-          Trade History
-        </button>
-        <button class="tab-btn" data-tab="tab-signals">
+        <button class="tab-btn active" data-tab="tab-signals">
           ⚡ Confluence Signals
         </button>
         <button class="tab-btn" data-tab="tab-confluence">
           🔍 8-Factor Engine
         </button>
+        <button class="tab-btn" data-tab="tab-positions" style="display:none !important;">
+          Positions <span id="pos-badge-count" class="tab-badge">0</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-orders" style="display:none !important;">
+          Open Orders <span id="orders-badge-count" class="tab-badge">0</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-trades" style="display:none !important;">
+          Trade History
+        </button>
       </div>
       <div class="bottom-panel-status">
-        <span id="target-lines-status" style="color:var(--color-cyan);">🎯 Chart Target Lines: ACTIVE</span>
-        <span>•</span>
-        <span class="margin-tag" style="color:var(--color-gold);">MEXC ISOLATED MARGIN</span>
-        <button id="btn-toggle-bottom-panel" class="panel-collapse-btn" title="Minimize / Expand Table Panel to enlarge chart">
+        <span id="target-lines-status" style="color:var(--color-cyan);">🎯 Signal Feed: LIVE</span>
+        <button id="btn-toggle-bottom-panel" class="panel-collapse-btn" title="Minimize / Expand Signal Panel to enlarge chart">
           <span id="bottom-panel-icon">▾</span> <span id="bottom-panel-lbl">Minimize Panel</span>
         </button>
       </div>
     </div>
 
     <div class="tab-content">
-      <!-- TAB 1: Real-Time Positions Table -->
-      <div id="tab-positions" class="tab-content-panel">
+      <!-- TAB 1: Real-Time Positions Table (Hidden for Signal Mode) -->
+      <div id="tab-positions" class="tab-content-panel" style="display:none;">
         <div class="table-responsive">
           <table class="terminal-table" id="positions-table">
             <thead>
@@ -485,7 +483,7 @@
       </div>
 
       <!-- TAB 4: Live Confluence Signals Feed -->
-      <div id="tab-signals" class="tab-content-panel" style="display:none;">
+      <div id="tab-signals" class="tab-content-panel" style="display:block;">
         <div id="signal-feed-list" class="signal-feed-list">
           <div id="feed-placeholder" style="color:var(--text-muted); font-size:12px; padding:16px;">
             Listening to live ticks... Signals will appear immediately upon confirmed bar close.
@@ -747,18 +745,17 @@
       <span class="mobile-nav-icon">📊</span>
       <span class="mobile-nav-label">Chart</span>
     </button>
-    <button class="mobile-nav-btn" data-mobile-tab="trade">
-      <span class="mobile-nav-icon">⚡</span>
-      <span class="mobile-nav-label">Trade</span>
-    </button>
-    <button class="mobile-nav-btn" data-mobile-tab="positions">
-      <span class="mobile-nav-icon">💼</span>
-      <span class="mobile-nav-label">Positions</span>
-      <span class="mobile-badge" id="mobile-pos-badge" style="display:none;">0</span>
+    <button class="mobile-nav-btn" data-mobile-tab="memecoins">
+      <span class="mobile-nav-icon">🔥</span>
+      <span class="mobile-nav-label">Meme Signals</span>
     </button>
     <button class="mobile-nav-btn" data-mobile-tab="signals">
       <span class="mobile-nav-icon">🔔</span>
       <span class="mobile-nav-label">Signals</span>
+    </button>
+    <button class="mobile-nav-btn" data-mobile-tab="scanner">
+      <span class="mobile-nav-icon">🔍</span>
+      <span class="mobile-nav-label">Scanner</span>
     </button>
   </nav>
 

@@ -2611,20 +2611,92 @@ body {
 }
 
 @media (max-width: 860px) {
-  #tv-chart-viewport {
-    min-height: 380px !important;
+  .app-header {
+    height: auto;
+    padding: 6px 10px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .brand-badge span {
+    font-size: 11px;
+  }
+  
+  .market-nav {
+    width: 100%;
+    justify-content: space-between;
+    overflow-x: auto;
+  }
+
+  .live-ticker-bar {
+    width: 100%;
+    justify-content: space-between;
+    padding: 3px 6px;
+  }
+
+  .ticker-item.stats-sub {
+    display: none;
+  }
+
+  .hero-signal-bar {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .hero-signal-summary {
+    display: none !important;
+  }
+
+  .hero-score-100-box {
+    padding: 2px 6px;
+  }
+
+  .score-100-num {
+    font-size: 16px;
+  }
+
+  .trading-dock {
+    display: none !important;
+  }
+
+  .main-workspace {
+    height: calc(100vh - 165px) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #tab-terminal.tab-pane.active {
+    height: calc(100vh - 145px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .chart-wrapper {
     height: 100% !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
   }
-  #tradingview_chart {
-    min-height: 380px !important;
+
+  #tv-chart-viewport, #tradingview_chart, #chart-container {
+    height: 100% !important;
+    min-height: 280px !important;
+    flex: 1 1 0% !important;
   }
+
   .chart-indicators-bar {
     overflow-x: auto;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
+    padding: 4px 8px;
   }
+
   .tv-hint-text {
     display: none !important;
+  }
+
+  .scanner-cards-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 
