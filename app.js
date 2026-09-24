@@ -206,10 +206,32 @@ class ScalperApp {
     this.loadSavedMexcCredentials();
     this.initToastContainer();
     this.bindEvents();
+
+    // Restore active symbol & subnav tab state from localStorage / URL hash on page refresh
+    let savedTab = null;
+    let savedSymbol = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        savedTab = localStorage.getItem('crypto_scalper_active_tab');
+        savedSymbol = localStorage.getItem('crypto_scalper_active_symbol');
+      }
+      if (!savedTab && typeof window !== 'undefined' && window.location && window.location.hash) {
+        savedTab = window.location.hash.replace('#', '');
+      }
+    } catch (e) {}
+
+    if (savedSymbol) {
+      this.symbol = savedSymbol;
+    }
+
     this.switchMobileTab('chart');
     this.initChart();
     this.initTradingViewChart();
     this.initInstitutionalFeatures();
+
+    if (savedTab) {
+      this.switchSubnavTab(savedTab);
+    }
 
     const serverAvailable = await this.checkServerAvailability();
     if (serverAvailable) {
@@ -219,11 +241,7 @@ class ScalperApp {
       await this.fetchInitialState();
     } else {
       this.initStandaloneClientMode();
-      // [BUG FIX RF-4] Force auto-trade OFF every session — never silently restore from localStorage.
-      // In standalone mode there are no server-side risk controls, so auto-trade must be
-      // explicitly re-enabled by the user each session.
       this.autoTradingEnabled = false;
-
     }
 
     await this.connectMarket(this.symbol, this.interval);
@@ -1443,6 +1461,7 @@ class ScalperApp {
         withdateranges: true,
         save_image: true,
         studies: [],
+        disabled_features: ['create_volume_indicator_by_default'],
         overrides: {
           'paneProperties.background': '#0b0e14',
           'paneProperties.vertGridProperties.color': 'rgba(42, 46, 57, 0.35)',
@@ -1631,18 +1650,31 @@ class ScalperApp {
   // PAIR & TIMEFRAME SWITCHING
   // =========================================================================
   async switchPair(newSymbol) {
-    if (this.symbol === newSymbol && this.bars.length > 0) return;
-    
+    if (!newSymbol) return;
     this.symbol = newSymbol;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('crypto_scalper_active_symbol', newSymbol);
+      }
+    } catch (e) {}
+
     this.engine.resetState();
     this.activeSignal = null;
     this.clearSignalPriceLines();
     this.clearPositionPriceLines();
 
-    // Update active UI pill
+    // Update active UI pill or custom pair input
+    let matchedPill = false;
     document.querySelectorAll('.pair-pill').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-pair') === newSymbol);
+      const isMatch = (btn.getAttribute('data-pair') === newSymbol);
+      btn.classList.toggle('active', isMatch);
+      if (isMatch) matchedPill = true;
     });
+
+    const customInput = document.getElementById('custom-pair-input');
+    if (customInput) {
+      customInput.value = matchedPill ? '' : newSymbol.replace('USDT', '');
+    }
 
     // Update dock unit badge
     const spec = this.getInstrumentSpec(newSymbol);
@@ -4251,6 +4283,15 @@ class ScalperApp {
 
   switchSubnavTab(tabId) {
     this.activeView = tabId;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('crypto_scalper_active_tab', tabId);
+      }
+      if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', `#${tabId}`);
+      }
+    } catch (e) {}
+
     document.querySelectorAll('.subnav-tab').forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
     });
@@ -4299,6 +4340,8 @@ class ScalperApp {
     if (refreshBtn) refreshBtn.classList.add('rotating');
     if (container) container.innerHTML = '<div class="loading-state-box">⚡ Scanning 24 Top Meme Coins for Whale Volume Surges, Liquidity Sweeps, and High-Accuracy Signals...</div>';
 
+    if (!this.memeSignalsCache) this.memeSignalsCache = {};
+
     const memeSymbols = [
       'PEPEUSDT', 'DOGEUSDT', 'SHIBUSDT', 'FLOKIUSDT', 'BONKUSDT', 
       'WIFUSDT', 'MEMEUSDT', 'NEIROUSDT', 'POPCATUSDT', 'SUIUSDT',
@@ -4306,6 +4349,8 @@ class ScalperApp {
       'NOTUSDT', 'PEOPLEUSDT', 'MOGUSDT', 'MYROUSDT', 'TRUMPUSDT', 
       'GOATUSDT', 'MOODENGUSDT', 'ACTUSDT', 'PENGUUSDT'
     ];
+
+    const now = Date.now();
 
     try {
       const results = await Promise.all(memeSymbols.map(async (symbol) => {
@@ -4324,30 +4369,37 @@ class ScalperApp {
             volume: parseFloat(k[5])
           }));
 
-          // Lock evaluation strictly on the last COMPLETED & CONFIRMED candle (candles.length - 2)
-          // This eliminates repainting / mid-candle direction flipping
           const confirmedBar = candles[candles.length - 2];
           const prev20 = candles.slice(-22, -2);
           const avgVol = prev20.reduce((s, c) => s + c.volume, 0) / prev20.length;
           const volRatio = avgVol > 0 ? (confirmedBar.volume / avgVol) : 1;
 
-          const firstPrice = candles[candles.length - 7].close;
-          const changePct = ((confirmedBar.close - firstPrice) / firstPrice) * 100;
+          const refBar = candles[candles.length - 7];
+          const changePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
 
           let sumRange = 0;
           for (let i = candles.length - 17; i < candles.length - 2; i++) {
             sumRange += (candles[i].high - candles[i].low);
           }
           const atr = sumRange / 15;
-          const isBullish = changePct >= 0;
-          const dir = isBullish ? 'LONG' : 'SHORT';
 
+          // Check if locked signal is still active within 25 minute window
+          const cached = this.memeSignalsCache[symbol];
+          if (cached && (now - cached.time) < 1500000) {
+            return cached;
+          }
+
+          // Strict breakout verification (requires volume surge or price momentum)
+          const isBullish = volRatio >= 1.25 && changePct > 0.15;
+          const isBearish = volRatio >= 1.25 && changePct < -0.15;
+
+          const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           const entry = confirmedBar.close;
-          const sl = isBullish ? entry - (atr * 1.5) : entry + (atr * 1.5);
+          const sl = (dir === 'SHORT') ? entry + (atr * 1.5) : entry - (atr * 1.5);
           const risk = Math.abs(entry - sl);
-          const tp1 = isBullish ? entry + (risk * 1.5) : entry - (risk * 1.5);
-          const tp2 = isBullish ? entry + (risk * 3.0) : entry - (risk * 3.0);
-          const tp3 = isBullish ? entry + (risk * 5.0) : entry - (risk * 5.0);
+          const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
+          const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
+          const tp3 = (dir === 'SHORT') ? entry - (risk * 5.0) : entry + (risk * 5.0);
 
           let score = 72 + Math.min(22, Math.floor(volRatio * 6)) + (Math.abs(changePct) > 1.2 ? 4 : 0);
           if (score > 98) score = 98;
@@ -4355,7 +4407,7 @@ class ScalperApp {
           const winProb = Math.min(96, Math.max(82, Math.floor(score * 0.94)));
           const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : 2));
 
-          return {
+          const sigObj = {
             symbol,
             price: entry,
             changePct,
@@ -4368,8 +4420,15 @@ class ScalperApp {
             tp3,
             score,
             winProb,
-            decimals
+            decimals,
+            time: now
           };
+
+          if (dir !== 'NEUTRAL') {
+            this.memeSignalsCache[symbol] = sigObj;
+          }
+
+          return sigObj;
         } catch (e) {
           return null;
         }
