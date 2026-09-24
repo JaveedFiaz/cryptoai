@@ -230,7 +230,7 @@ class ScalperApp {
     this.initInstitutionalFeatures();
 
     this.switchSubnavTab(initialTab);
-    const initialMobileTab = (initialTab === 'gold') ? 'gold' : ((initialTab === 'memecoins') ? 'memecoins' : ((initialTab === 'scanner') ? 'scanner' : (initialTab === 'analytics' ? 'analytics' : 'chart')));
+    const initialMobileTab = (initialTab === 'memecoins') ? 'memecoins' : ((initialTab === 'scanner') ? 'scanner' : (initialTab === 'analytics' ? 'analytics' : 'chart'));
     this.switchMobileTab(initialMobileTab);
 
     const serverAvailable = await this.checkServerAvailability();
@@ -531,19 +531,6 @@ class ScalperApp {
       });
     }
 
-    // Terminal Subnav Tabs (Terminal, Gold, Meme Coins, Scanner, Analytics, Backtest)
-    document.querySelectorAll('.subnav-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tab = btn.getAttribute('data-tab');
-        this.switchSubnavTab(tab);
-      });
-    });
-
-    const goldRefreshBtn = document.getElementById('gold-refresh-btn');
-    if (goldRefreshBtn) {
-      goldRefreshBtn.addEventListener('click', () => this.refreshGoldTracker());
-    }
-
     // Bottom Panel Tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -767,13 +754,11 @@ class ScalperApp {
       b.classList.toggle('active', b.getAttribute('data-mobile-tab') === tab);
     });
 
-    document.body.classList.remove('mobile-tab-chart', 'mobile-tab-gold', 'mobile-tab-memecoins', 'mobile-tab-signals', 'mobile-tab-scanner');
+    document.body.classList.remove('mobile-tab-chart', 'mobile-tab-memecoins', 'mobile-tab-signals', 'mobile-tab-scanner');
     document.body.classList.add(`mobile-tab-${tab}`);
 
     if (tab === 'chart') {
       this.switchSubnavTab('terminal');
-    } else if (tab === 'gold') {
-      this.switchSubnavTab('gold');
     } else if (tab === 'memecoins') {
       this.switchSubnavTab('memecoins');
     } else if (tab === 'signals') {
@@ -4500,269 +4485,6 @@ class ScalperApp {
       });
     } catch (e) {
       if (container) container.innerHTML = `<div class="loading-state-box">Meme coin scanner error: ${e.message}</div>`;
-    }
-  }
-
-  switchSubnavTab(tab) {
-    this.activeView = tab;
-    document.querySelectorAll('.subnav-tab').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
-    });
-
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.style.display = 'none';
-    });
-
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('crypto_scalper_active_tab', tab);
-      }
-      if (typeof window !== 'undefined' && window.location) {
-        window.location.hash = tab;
-      }
-    } catch (e) {}
-
-    if (tab === 'terminal') {
-      const pane = document.getElementById('tab-terminal');
-      if (pane) pane.style.display = 'block';
-    } else if (tab === 'gold') {
-      const pane = document.getElementById('tab-gold');
-      if (pane) pane.style.display = 'block';
-      this.refreshGoldTracker();
-      this.initGoldTradingViewChart();
-    } else if (tab === 'memecoins') {
-      const pane = document.getElementById('tab-memecoins');
-      if (pane) pane.style.display = 'block';
-      this.refreshMemeCoinTracker();
-    } else if (tab === 'scanner') {
-      const pane = document.getElementById('tab-scanner');
-      if (pane) pane.style.display = 'block';
-      this.refreshScanner();
-    } else if (tab === 'analytics') {
-      const pane = document.getElementById('tab-analytics');
-      if (pane) pane.style.display = 'block';
-      this.loadAnalytics();
-    } else if (tab === 'backtest') {
-      const pane = document.getElementById('tab-backtest');
-      if (pane) pane.style.display = 'block';
-    }
-  }
-
-  async refreshGoldTracker() {
-    const container = document.getElementById('gold-signal-card-container');
-    const refreshBtn = document.getElementById('gold-refresh-btn');
-    const killzoneBadge = document.getElementById('gold-killzone-badge');
-    const spotPriceEl = document.getElementById('gold-spot-price');
-    const spotChangeEl = document.getElementById('gold-spot-change');
-    const sessionValEl = document.getElementById('gold-session-val');
-    const sessionSubEl = document.getElementById('gold-session-sub');
-    const rangeValEl = document.getElementById('gold-range-val');
-    const atrValEl = document.getElementById('gold-atr-val');
-
-    if (refreshBtn) refreshBtn.classList.add('rotating');
-
-    const now = new Date();
-    const utcHour = now.getUTCHours();
-    let sessionName = 'Asian Session 🌏';
-    let killzoneText = 'ASIA CONSOLIDATION (OFF-PEAK)';
-    let killzoneActive = false;
-
-    if (utcHour >= 7 && utcHour < 10) {
-      sessionName = 'London Open Killzone 🇬🇧';
-      killzoneText = 'LONDON KILLZONE ACTIVE (+15 BOOST)';
-      killzoneActive = true;
-    } else if (utcHour >= 13 && utcHour < 16) {
-      sessionName = 'New York Open Killzone 🇺🇸';
-      killzoneText = 'NEW YORK KILLZONE ACTIVE (+15 BOOST)';
-      killzoneActive = true;
-    } else if (utcHour >= 16 && utcHour < 21) {
-      sessionName = 'New York Late Session 🇺🇸';
-      killzoneText = 'NY LATE SESSION ACTIVE (+8 BOOST)';
-      killzoneActive = false;
-    }
-
-    if (killzoneBadge) {
-      killzoneBadge.textContent = killzoneText;
-      killzoneBadge.style.borderColor = killzoneActive ? '#ffd700' : 'rgba(255,255,255,0.2)';
-    }
-
-    if (sessionValEl) sessionValEl.textContent = sessionName;
-    if (sessionSubEl) sessionSubEl.textContent = killzoneActive ? 'Killzone Volatility: PEAK INSTITUTIONAL' : 'Killzone Volatility: NORMAL';
-
-    try {
-      const res = await fetch('https://fapi.binance.com/fapi/v1/klines?symbol=PAXGUSDT&interval=1m&limit=100');
-      const rawKlines = await res.json();
-
-      if (!Array.isArray(rawKlines) || rawKlines.length < 20) {
-        if (container) container.innerHTML = '<div class="loading-state-box">Fetching live Gold spot data...</div>';
-        return;
-      }
-
-      const candles = rawKlines.map(k => ({
-        time: Math.floor(k[0] / 1000),
-        open: parseFloat(k[1]),
-        high: parseFloat(k[2]),
-        low: parseFloat(k[3]),
-        close: parseFloat(k[4]),
-        volume: parseFloat(k[5])
-      }));
-
-      const latestCandle = candles[candles.length - 1];
-      const prev24h = candles[0];
-      const spotPrice = latestCandle.close;
-      const changePct = ((spotPrice - prev24h.open) / prev24h.open) * 100;
-      const changeVal = spotPrice - prev24h.open;
-
-      const highs = candles.map(c => c.high);
-      const lows = candles.map(c => c.low);
-      const high24h = Math.max(...highs);
-      const low24h = Math.min(...lows);
-
-      let atrSum = 0;
-      for (let i = candles.length - 14; i < candles.length; i++) {
-        atrSum += (candles[i].high - candles[i].low);
-      }
-      const atr14 = atrSum / 14;
-
-      if (spotPriceEl) spotPriceEl.textContent = `$${spotPrice.toFixed(2)}`;
-      if (spotChangeEl) {
-        spotChangeEl.textContent = `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% (${changeVal >= 0 ? '+' : ''}$${changeVal.toFixed(2)})`;
-        spotChangeEl.style.color = changePct >= 0 ? '#00e676' : '#ff3b30';
-      }
-      if (rangeValEl) rangeValEl.textContent = `$${low24h.toFixed(2)} - $${high24h.toFixed(2)}`;
-      if (atrValEl) atrValEl.textContent = `ATR (14): $${atr14.toFixed(2)}/oz`;
-
-      if (!this.goldSignalsCache) this.goldSignalsCache = {};
-      const cacheKey = 'PAXGUSDT_GOLD';
-      const cached = this.goldSignalsCache[cacheKey];
-      const nowTs = Date.now();
-
-      let goldSig = null;
-      if (cached && (nowTs - cached.time) < 25 * 60 * 1000) {
-        goldSig = cached;
-      } else {
-        const closedBar = candles[candles.length - 2] || latestCandle;
-        const entry = closedBar.close;
-        const isLong = entry >= closedBar.open;
-        const dir = isLong ? 'LONG' : 'SHORT';
-        
-        const slDist = Math.max(3.5, atr14 * 1.5);
-        const sl = isLong ? entry - slDist : entry + slDist;
-        const tp1 = isLong ? entry + (slDist * 1.0) : entry - (slDist * 1.0);
-        const tp2 = isLong ? entry + (slDist * 2.0) : entry - (slDist * 2.0);
-        const tp3 = isLong ? entry + (slDist * 3.5) : entry - (slDist * 3.5);
-
-        let score = 78 + (killzoneActive ? 15 : 0) + (atr14 > 5 ? 5 : 0);
-        if (score > 98) score = 98;
-        const winProb = Math.min(94, Math.max(84, Math.floor(score * 0.93)));
-
-        goldSig = {
-          symbol: 'XAUUSD (Gold Spot)',
-          rawSymbol: 'PAXGUSDT',
-          price: entry,
-          changePct,
-          dir,
-          entry,
-          sl,
-          tp1,
-          tp2,
-          tp3,
-          score,
-          winProb,
-          atr14,
-          killzoneActive,
-          time: nowTs
-        };
-        this.goldSignalsCache[cacheKey] = goldSig;
-      }
-
-      if (container && goldSig) {
-        const dirColor = goldSig.dir === 'LONG' ? '#00e676' : '#ff3b30';
-        container.innerHTML = `
-          <div class="setup-card ${goldSig.dir === 'LONG' ? 'bullish' : 'bearish'}" style="background:#11141d; border:1px solid #ffd700; border-radius:8px; padding:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-              <div>
-                <strong style="font-size:18px; color:#ffd700;">🏆 XAU/USD GOLD SIGNAL</strong>
-                <span style="display:block; font-size:11px; color:var(--text-muted);">Institutional Scalper Engine • [1m/5m]</span>
-              </div>
-              <span class="setup-badge" style="background:rgba(255,215,0,0.2); color:#ffd700; font-weight:800; padding:4px 8px; border-radius:4px; font-size:12px;">
-                ${goldSig.winProb}% WIN RATE
-              </span>
-            </div>
-
-            <div style="background:#080a0f; border:1px solid #1e2330; border-radius:6px; padding:12px; margin-bottom:12px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                <span style="font-size:14px; font-weight:800; color:${dirColor};">⚡ ${goldSig.dir} SETUP DETECTED</span>
-                <span style="font-size:16px; font-weight:800; color:#ffffff; font-family:var(--font-mono);">$${goldSig.entry.toFixed(2)}</span>
-              </div>
-              <div style="font-size:11px; color:var(--text-secondary); line-height:1.4;">
-                Confluence Score: <b style="color:#ffd700;">${goldSig.score}/100</b> • ${goldSig.killzoneActive ? 'London/NY Killzone Boost Active' : 'Off-Peak Trend Scalp'}
-              </div>
-            </div>
-
-            <!-- Target Grid -->
-            <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#080a0f; padding:10px; border-radius:6px; font-size:12px; margin-bottom:12px;">
-              <div><span style="color:var(--text-muted);">STOP LOSS:</span><br><b style="color:#ff3b30; font-family:var(--font-mono);">$${goldSig.sl.toFixed(2)}</b></div>
-              <div><span style="color:var(--text-muted);">TP1 (1R Target):</span><br><b style="color:#00e676; font-family:var(--font-mono);">$${goldSig.tp1.toFixed(2)}</b></div>
-              <div><span style="color:var(--text-muted);">TP2 (2R Target):</span><br><b style="color:#00e676; font-family:var(--font-mono);">$${goldSig.tp2.toFixed(2)}</b></div>
-              <div><span style="color:var(--text-muted);">TP3 (3.5R Target):</span><br><b style="color:#00e676; font-family:var(--font-mono);">$${goldSig.tp3.toFixed(2)}</b></div>
-            </div>
-
-            <button class="btn-primary trade-gold-btn" style="width:100%; height:42px; font-weight:800; font-size:13px; background:linear-gradient(135deg, #ffd700, #b8860b); border:none; color:#000; cursor:pointer; border-radius:6px;">
-              ⚡ View Gold Interactive Chart &amp; Trade
-            </button>
-          </div>
-        `;
-
-        container.querySelector('.trade-gold-btn')?.addEventListener('click', async () => {
-          await this.switchPair('PAXGUSDT');
-          this.switchSubnavTab('terminal');
-          this.showToast('🏆 Switched main terminal chart to PAXG Gold Futures', 'success', 3000);
-        });
-      }
-    } catch (e) {
-      if (container) container.innerHTML = `<div class="loading-state-box">Gold feed error: ${e.message}</div>`;
-    } finally {
-      if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 500);
-    }
-  }
-
-  initGoldTradingViewChart() {
-    const container = document.getElementById('gold-tradingview-container');
-    if (!container) return;
-
-    if (typeof TradingView === 'undefined' || typeof TradingView.widget === 'undefined') {
-      setTimeout(() => this.initGoldTradingViewChart(), 350);
-      return;
-    }
-
-    try {
-      container.innerHTML = '';
-      new TradingView.widget({
-        autosize: true,
-        symbol: 'OANDA:XAUUSD',
-        interval: '1',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Etc/UTC',
-        theme: 'dark',
-        style: '1',
-        locale: 'en',
-        toolbar_bg: '#0b0e14',
-        enable_publishing: false,
-        allow_symbol_change: true,
-        container_id: 'gold-tradingview-container',
-        hide_top_toolbar: false,
-        hide_side_toolbar: false,
-        withdateranges: true,
-        save_image: true,
-        studies: [],
-        disabled_features: ['create_volume_indicator_by_default', 'volume_force_overlay'],
-        overrides: {
-          'paneProperties.background': '#0b0e14',
-          'mainSeriesProperties.showVolume': false
-        }
-      });
-    } catch (e) {
-      console.warn('Gold TV widget error:', e);
     }
   }
 

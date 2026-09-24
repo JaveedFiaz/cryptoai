@@ -2791,20 +2791,10 @@ body {
     display: none !important;
   }
 
-  /* 5. GOLD, MEME COIN & SCANNER CARDS ON MOBILE */
-  #tab-gold, #tab-memecoins, #tab-scanner, #tab-analytics, #tab-backtest, #tab-audit {
+  /* 5. MEME COIN & SCANNER CARDS ON MOBILE */
+  #tab-memecoins, #tab-scanner, #tab-analytics, #tab-backtest, #tab-audit {
     padding: 10px !important;
     margin-bottom: 60px !important;
-  }
-
-  .gold-main-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-
-  .gold-chart-wrapper {
-    min-height: 380px !important;
-    height: 420px !important;
   }
 
   .scanner-cards-grid {
