@@ -2253,7 +2253,7 @@ class ScalperApp {
     });
   }
 
-  updateSignalPriceLines(sig) {
+  renderTradingViewRiskRewardBox(sig) {
     if (!this.candleSeries || !sig) return;
 
     if (this.signalPriceLines) {
@@ -2263,54 +2263,137 @@ class ScalperApp {
     }
     this.signalPriceLines = [];
 
-    const isBuy = (sig.type === 'BUY');
-    const entryPrice = sig.price || (this.bars[sig.barIndex] ? this.bars[sig.barIndex].close : 0);
-    const slPrice = sig.sl;
-    const tp1Price = sig.tp1;
+    const isBuy = (sig.dir === 'LONG' || sig.direction === 'LONG' || sig.type === 'BUY');
+    const entryPrice = sig.entryPrice || sig.entry || sig.price || (this.bars[this.bars.length - 1] ? this.bars[this.bars.length - 1].close : 0);
+    const slPrice = sig.sl || sig.stopLoss;
+    const tp1Price = sig.tp1 || sig.takeProfit;
+    const tp2Price = sig.tp2;
+    const tp3Price = sig.tp3;
+    const decimals = this.getPriceDecimals(sig.symbol || this.symbol);
 
     if (entryPrice > 0) {
+      // 1. Entry Line (Solid Cyan / Blue)
       const entryLine = this.candleSeries.createPriceLine({
         price: entryPrice,
-        color: isBuy ? '#00e676' : '#ff3b30',
+        color: '#00d2ff',
         lineWidth: 2,
-        lineStyle: 0,
+        lineStyle: (typeof LightweightCharts !== 'undefined' && LightweightCharts.LineStyle) ? LightweightCharts.LineStyle.Solid : 0,
         axisLabelVisible: true,
-        title: `${sig.type} ENTRY @ $${entryPrice.toFixed(this.getPriceDecimals())}`
+        title: `${isBuy ? '🟢 BUY LONG' : '🔴 SELL SHORT'} ENTRY [$${entryPrice.toFixed(decimals)}]`
       });
       this.signalPriceLines.push(entryLine);
     }
 
     if (slPrice > 0) {
+      // 2. Stop Loss Line (Crimson Dashed) - Red Risk Zone Boundary
       const slLine = this.candleSeries.createPriceLine({
         price: slPrice,
         color: '#ff3b30',
-        lineWidth: 1,
-        lineStyle: 2,
+        lineWidth: 2,
+        lineStyle: (typeof LightweightCharts !== 'undefined' && LightweightCharts.LineStyle) ? LightweightCharts.LineStyle.Dashed : 2,
         axisLabelVisible: true,
-        title: `STOP LOSS @ $${slPrice.toFixed(this.getPriceDecimals())}`
+        title: `🛑 STOP LOSS [$${slPrice.toFixed(decimals)}]`
       });
       this.signalPriceLines.push(slLine);
     }
 
     if (tp1Price > 0) {
+      // 3. Take Profit 1 Line (Emerald Dashed) - Green Target Zone Boundary
       const tpLine = this.candleSeries.createPriceLine({
         price: tp1Price,
         color: '#00e676',
-        lineWidth: 1,
-        lineStyle: 2,
+        lineWidth: 2,
+        lineStyle: (typeof LightweightCharts !== 'undefined' && LightweightCharts.LineStyle) ? LightweightCharts.LineStyle.Dashed : 2,
         axisLabelVisible: true,
-        title: `TAKE PROFIT 1 @ $${tp1Price.toFixed(this.getPriceDecimals())}`
+        title: `🎯 TP1 TARGET [$${tp1Price.toFixed(decimals)}]`
       });
       this.signalPriceLines.push(tpLine);
     }
 
+    if (tp2Price > 0) {
+      // 4. Take Profit 2 Line (Emerald Dotted)
+      const tp2Line = this.candleSeries.createPriceLine({
+        price: tp2Price,
+        color: '#00e676',
+        lineWidth: 1,
+        lineStyle: (typeof LightweightCharts !== 'undefined' && LightweightCharts.LineStyle) ? LightweightCharts.LineStyle.Dotted : 3,
+        axisLabelVisible: true,
+        title: `🎯 TP2 TARGET [$${tp2Price.toFixed(decimals)}]`
+      });
+      this.signalPriceLines.push(tp2Line);
+    }
+
+    if (tp3Price > 0) {
+      // 5. Take Profit 3 Line (Gold Dotted)
+      const tp3Line = this.candleSeries.createPriceLine({
+        price: tp3Price,
+        color: '#ffd700',
+        lineWidth: 1,
+        lineStyle: (typeof LightweightCharts !== 'undefined' && LightweightCharts.LineStyle) ? LightweightCharts.LineStyle.Dotted : 3,
+        axisLabelVisible: true,
+        title: `🚀 TP3 TARGET [$${tp3Price.toFixed(decimals)}]`
+      });
+      this.signalPriceLines.push(tp3Line);
+    }
+
     if (!this.chartDrawings) this.chartDrawings = {};
     this.chartDrawings[this.symbol] = [
-      { price: entryPrice, color: isBuy ? '#00e676' : '#ff3b30', title: `${sig.type} ENTRY` },
+      { price: entryPrice, color: '#00d2ff', title: `${isBuy ? 'BUY LONG' : 'SELL SHORT'} ENTRY` },
       ...(slPrice ? [{ price: slPrice, color: '#ff3b30', title: 'STOP LOSS' }] : []),
-      ...(tp1Price ? [{ price: tp1Price, color: '#00e676', title: 'TAKE PROFIT 1' }] : [])
+      ...(tp1Price ? [{ price: tp1Price, color: '#00e676', title: 'TP1 TARGET' }] : []),
+      ...(tp2Price ? [{ price: tp2Price, color: '#00e676', title: 'TP2 TARGET' }] : [])
     ];
     this.saveChartDrawings();
+  }
+
+  updateSignalPriceLines(sig) {
+    this.renderTradingViewRiskRewardBox(sig);
+  }
+
+  async selectAndOpenTradeChart(symbol, timeframe = '5m', signal = null) {
+    if (!symbol) return;
+    const cleanSym = symbol.toUpperCase();
+    const targetTf = timeframe || '5m';
+
+    // 1. Switch pair & optimal timeframe
+    await this.switchPair(cleanSym);
+    await this.switchTimeframe(targetTf);
+
+    // 2. Open Chart View Pane & Mobile Chart tab
+    this.switchSubnavTab('terminal');
+    this.switchMobileTab('chart');
+
+    // 3. Render Risk/Reward Box & Hero Banner
+    if (signal) {
+      const sigObj = {
+        symbol: cleanSym,
+        dir: signal.dir || signal.direction || (signal.type === 'BUY' ? 'LONG' : 'SHORT'),
+        type: signal.type || ((signal.dir === 'LONG' || signal.direction === 'LONG') ? 'BUY' : 'SELL'),
+        entry: signal.entry || signal.price || signal.currentPrice || signal.entryPrice,
+        price: signal.entry || signal.price || signal.currentPrice || signal.entryPrice,
+        sl: signal.sl || signal.stopLoss,
+        tp1: signal.tp1 || signal.takeProfit,
+        tp2: signal.tp2,
+        tp3: signal.tp3,
+        score: signal.score || 8,
+        score100: signal.score100 || Math.round(((signal.score || 8)/8)*100),
+        reasons: signal.reasons || [signal.description || 'High conviction setup']
+      };
+
+      this.activeSignal = sigObj;
+      this.updateHeroBanner(sigObj);
+      this.renderTradingViewRiskRewardBox(sigObj);
+
+      // Auto-populate Trading Dock SL / TP inputs
+      if (this.dom.dock && this.dom.dock.slInput) {
+        this.dom.dock.enableTpsl.checked = true;
+        this.dom.dock.tpslContainer.style.display = 'block';
+        if (sigObj.sl) this.dom.dock.slInput.value = Number(sigObj.sl).toFixed(this.getPriceDecimals(cleanSym));
+        if (sigObj.tp2 || sigObj.tp1) this.dom.dock.tpInput.value = Number(sigObj.tp2 || sigObj.tp1).toFixed(this.getPriceDecimals(cleanSym));
+      }
+    }
+
+    this.showToast(`📈 Opened ${cleanSym} [${targetTf}] with TradingView Risk/Reward Box!`, 'success', 3500);
   }
 
 
@@ -4476,9 +4559,7 @@ class ScalperApp {
         `;
 
         card.querySelector('.trade-meme-btn')?.addEventListener('click', async () => {
-          await this.switchPair(item.symbol);
-          this.switchSubnavTab('terminal');
-          this.showToast(`🔥 Switched chart to ${item.symbol}`, 'success', 3000);
+          await this.selectAndOpenTradeChart(item.symbol, '1m', item);
         });
 
         container.appendChild(card);
@@ -4786,16 +4867,8 @@ class ScalperApp {
 
       const tradeBtn = card.querySelector('.btn-trade-setup');
       if (tradeBtn) {
-        tradeBtn.addEventListener('click', () => {
-          this.switchPair(setup.symbol);
-          this.switchSubnavTab('terminal');
-          if (this.dom.dock && this.dom.dock.slInput) {
-            this.dom.dock.enableTpsl.checked = true;
-            this.dom.dock.tpslContainer.style.display = 'block';
-            this.dom.dock.slInput.value = setup.sl;
-            this.dom.dock.tpInput.value = setup.tp2;
-          }
-          this.showToast(`Switched to ${setup.symbol} setup [${setup.direction}]`, 'info');
+        tradeBtn.addEventListener('click', async () => {
+          await this.selectAndOpenTradeChart(setup.symbol, setup.interval || '5m', setup);
         });
       }
 

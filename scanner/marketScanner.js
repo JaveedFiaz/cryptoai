@@ -106,7 +106,7 @@ class MarketScanner {
         setupDesc = `Confluence Score: ${score100}/100 with ${latest.regime} momentum`;
       }
 
-      if (!setupType) return null;
+      if (!setupType || direction === 'NEUTRAL') return null;
 
       // Calculate SL & TP
       const atr = latest.atr || (currentPrice * 0.008);
