@@ -74,6 +74,7 @@ class ScalperApp {
     // Confluence Signal Engine
     this.engine = new ScalperEngine();
     this.activeSignal = null;
+    this.activeSignalBySymbol = {};
     
     // Live Demo State
     this.account = {
@@ -207,13 +208,15 @@ class ScalperApp {
     this.initToastContainer();
     this.bindEvents();
 
-    // Restore active symbol & subnav tab state from localStorage / URL hash on page refresh
+    // Restore active symbol, subnav tab & category state from localStorage / URL hash on page refresh
     let savedTab = null;
     let savedSymbol = null;
+    let savedCategory = null;
     try {
       if (typeof localStorage !== 'undefined') {
         savedTab = localStorage.getItem('crypto_scalper_active_tab');
         savedSymbol = localStorage.getItem('crypto_scalper_active_symbol');
+        savedCategory = localStorage.getItem('crypto_scalper_active_category');
       }
       if (!savedTab && typeof window !== 'undefined' && window.location && window.location.hash) {
         savedTab = window.location.hash.replace('#', '');
@@ -222,6 +225,9 @@ class ScalperApp {
 
     if (savedSymbol) {
       this.symbol = savedSymbol;
+    }
+    if (savedCategory) {
+      this.activeMemeCategory = savedCategory;
     }
 
     const initialTab = savedTab || 'terminal';
@@ -2202,6 +2208,15 @@ class ScalperApp {
         }
       }
     } catch (e) {}
+
+    // Restore active signal & Risk/Reward Box for current pair if present
+    const storedSig = (this.activeSignalBySymbol && this.activeSignalBySymbol[this.symbol]) ||
+                      (this.memeSignalsCache && this.memeSignalsCache[this.symbol]);
+    if (storedSig) {
+      this.activeSignal = storedSig;
+      this.updateHeroBanner(storedSig);
+      this.renderTradingViewRiskRewardBox(storedSig);
+    }
   }
 
   applySavedChartDrawings() {
@@ -2506,6 +2521,8 @@ class ScalperApp {
         reasons: signal.reasons || [signal.description || 'High conviction setup']
       };
 
+      if (!this.activeSignalBySymbol) this.activeSignalBySymbol = {};
+      this.activeSignalBySymbol[cleanSym] = sigObj;
       this.activeSignal = sigObj;
       this.updateHeroBanner(sigObj);
       this.renderTradingViewRiskRewardBox(sigObj);
@@ -4650,38 +4667,43 @@ class ScalperApp {
     const highCapBtn = document.getElementById('cat-btn-highcap');
     const bigMovesBtn = document.getElementById('cat-btn-bigmoves');
 
+    if (!this.activeMemeCategory) {
+      try {
+        this.activeMemeCategory = (typeof localStorage !== 'undefined' && localStorage.getItem('crypto_scalper_active_category')) || 'memecoins';
+      } catch (e) {
+        this.activeMemeCategory = 'memecoins';
+      }
+    }
+
+    const setCategory = (cat) => {
+      this.activeMemeCategory = cat;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('crypto_scalper_active_category', cat);
+        }
+      } catch (e) {}
+      if (memeBtn) memeBtn.classList.toggle('active', cat === 'memecoins');
+      if (highCapBtn) highCapBtn.classList.toggle('active', cat === 'highcap');
+      if (bigMovesBtn) bigMovesBtn.classList.toggle('active', cat === 'bigmoves');
+      this.refreshMemeCoinTracker();
+    };
+
     if (memeBtn && !memeBtn.dataset.bound) {
       memeBtn.dataset.bound = 'true';
-      memeBtn.addEventListener('click', () => {
-        this.activeMemeCategory = 'memecoins';
-        memeBtn.classList.add('active');
-        if (highCapBtn) highCapBtn.classList.remove('active');
-        if (bigMovesBtn) bigMovesBtn.classList.remove('active');
-        this.refreshMemeCoinTracker();
-      });
+      memeBtn.addEventListener('click', () => setCategory('memecoins'));
     }
     if (highCapBtn && !highCapBtn.dataset.bound) {
       highCapBtn.dataset.bound = 'true';
-      highCapBtn.addEventListener('click', () => {
-        this.activeMemeCategory = 'highcap';
-        highCapBtn.classList.add('active');
-        if (memeBtn) memeBtn.classList.remove('active');
-        if (bigMovesBtn) bigMovesBtn.classList.remove('active');
-        this.refreshMemeCoinTracker();
-      });
+      highCapBtn.addEventListener('click', () => setCategory('highcap'));
     }
     if (bigMovesBtn && !bigMovesBtn.dataset.bound) {
       bigMovesBtn.dataset.bound = 'true';
-      bigMovesBtn.addEventListener('click', () => {
-        this.activeMemeCategory = 'bigmoves';
-        bigMovesBtn.classList.add('active');
-        if (memeBtn) memeBtn.classList.remove('active');
-        if (highCapBtn) highCapBtn.classList.remove('active');
-        this.refreshMemeCoinTracker();
-      });
+      bigMovesBtn.addEventListener('click', () => setCategory('bigmoves'));
     }
 
-    if (!this.activeMemeCategory) this.activeMemeCategory = 'memecoins';
+    if (memeBtn) memeBtn.classList.toggle('active', this.activeMemeCategory === 'memecoins');
+    if (highCapBtn) highCapBtn.classList.toggle('active', this.activeMemeCategory === 'highcap');
+    if (bigMovesBtn) bigMovesBtn.classList.toggle('active', this.activeMemeCategory === 'bigmoves');
 
     const catTitle = this.activeMemeCategory === 'bigmoves'
       ? 'PRE-BREAKOUT BIG MOVES'

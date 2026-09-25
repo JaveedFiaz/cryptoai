@@ -2140,13 +2140,16 @@ body {
    ============================================================================= */
 
 /* Sub-Navigation Tabs */
+/* Sub-Navigation Tabs - Glassmorphic Upgrade */
 .terminal-subnav {
   display: flex;
   align-items: center;
-  background: #0d1117;
-  border-bottom: 1px solid #1e222d;
-  padding: 0 16px;
-  gap: 6px;
+  background: rgba(13, 17, 23, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 16px;
+  gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -2154,26 +2157,33 @@ body {
 .terminal-subnav::-webkit-scrollbar { display: none; }
 
 .subnav-tab {
-  background: transparent;
-  border: none;
-  color: #787b86;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  color: #8b949e;
   font-size: 13px;
-  font-weight: 600;
-  padding: 10px 14px;
+  font-weight: 700;
+  padding: 8px 16px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .subnav-tab:hover {
-  color: #e0e3eb;
+  color: #f0f6fc;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
 .subnav-tab.active {
   color: #00e676;
-  border-bottom-color: #00e676;
-  background: rgba(0, 230, 118, 0.05);
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.15), rgba(0, 212, 255, 0.10));
+  border: 1px solid rgba(0, 230, 118, 0.5);
+  box-shadow: 0 0 16px rgba(0, 230, 118, 0.2);
 }
 
 /* Action Control Buttons in Header */
@@ -2881,29 +2891,36 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
 }
 
-/* Category Sub-Menu Pills */
+/* Category Sub-Menu Pills - Modern Glow Upgrade */
 .category-pill {
   padding: 8px 16px;
   border-radius: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  background: rgba(22, 27, 34, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #8b949e;
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .category-pill:hover {
-  border-color: var(--color-cyan);
+  border-color: rgba(0, 210, 255, 0.4);
   color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
 }
 
 .category-pill.active {
-  background: linear-gradient(135deg, rgba(0, 230, 118, 0.18), rgba(0, 210, 255, 0.18));
-  border: 1.5px solid var(--color-cyan);
-  color: #fff;
-  box-shadow: 0 0 12px rgba(0, 210, 255, 0.25);
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.2), rgba(0, 210, 255, 0.2));
+  border: 1.5px solid #00d2ff;
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(0, 210, 255, 0.35);
+  font-weight: 800;
 }
 
 .risk-reward-overlay-box {
