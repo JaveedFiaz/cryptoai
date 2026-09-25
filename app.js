@@ -4721,25 +4721,26 @@ class ScalperApp {
 
     this.memeSignalsCache = this.loadMemeCache();
 
+    // 100% Disjoint Symbol Sets for Zero Overlap Between Categories
     const memeSymbols = [
       'PEPEUSDT', 'DOGEUSDT', 'SHIBUSDT', 'FLOKIUSDT', 'BONKUSDT', 
-      'WIFUSDT', 'MEMEUSDT', 'NEIROUSDT', 'POPCATUSDT', 'SUIUSDT',
-      'BRETTUSDT', 'MEWUSDT', 'TURBOUSDT', 'BOMEUSDT', '1000SATSUSDT',
-      'NOTUSDT', 'PEOPLEUSDT', 'MOGUSDT', 'MYROUSDT', 'TRUMPUSDT', 
-      'GOATUSDT', 'MOODENGUSDT', 'ACTUSDT', 'PENGUUSDT'
+      'WIFUSDT', 'MEMEUSDT', 'NEIROUSDT', 'POPCATUSDT', 'BRETTUSDT', 
+      'MEWUSDT', 'TURBOUSDT', 'BOMEUSDT', '1000SATSUSDT', 'NOTUSDT', 
+      'PEOPLEUSDT', 'MOGUSDT', 'MYROUSDT', 'TRUMPUSDT', 'GOATUSDT', 
+      'MOODENGUSDT', 'ACTUSDT', 'PENGUUSDT', 'PNUTUSDT'
     ];
 
     const highCapSymbols = [
       'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 
-      'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'NEARUSDT', 
-      'DOTUSDT', 'SUIUSDT', 'LTCUSDT', 'UNIUSDT', 'APTUSDT', 
-      'ARBUSDT', 'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT'
+      'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'NEARUSDT', 'DOTUSDT', 
+      'SUIUSDT', 'LTCUSDT', 'UNIUSDT', 'APTUSDT', 'ARBUSDT', 
+      'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT', 'TIAUSDT'
     ];
 
-    const newGemsSymbols = [
-      'PNUTUSDT', 'VIRTUALUSDT', 'AI16ZUSDT', 'CHILLGUYUSDT', 'GRASSUSDT',
-      'SPXUSDT', 'FARTCOINUSDT', 'MELANIAUSDT', '1000CATUSDT', 'MAJORUSDT',
-      'HIPPOUSDT', 'LUCEUSDT', 'DOGUSDT', 'NEIROUSDT', 'TRUMPUSDT'
+    const preBreakoutMovers = [
+      'VIRTUALUSDT', 'AI16ZUSDT', 'CHILLGUYUSDT', 'GRASSUSDT', 'SPXUSDT',
+      'FARTCOINUSDT', 'MELANIAUSDT', '1000CATUSDT', 'MAJORUSDT', 'HIPPOUSDT',
+      'LUCEUSDT', 'DOGUSDT', 'RENDERUSDT', 'ONDOUSDT', 'WLDUSDT', 'JUPUSDT'
     ];
 
     let dynamicTopGainers = [];
@@ -4756,8 +4757,9 @@ class ScalperApp {
               tickerMap24h[t.symbol] = { change24h: chg, volume24h: vol };
             }
           });
+          const existingSet = new Set([...memeSymbols, ...highCapSymbols]);
           dynamicTopGainers = tickers
-            .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume || 0) > 20000000)
+            .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume || 0) > 20000000 && !existingSet.has(t.symbol))
             .sort((a, b) => parseFloat(b.priceChangePercent || 0) - parseFloat(a.priceChangePercent || 0))
             .slice(0, 15)
             .map(t => t.symbol);
@@ -4769,7 +4771,7 @@ class ScalperApp {
     if (this.activeMemeCategory === 'highcap') {
       targetSymbols = highCapSymbols;
     } else if (this.activeMemeCategory === 'bigmoves') {
-      targetSymbols = Array.from(new Set([...memeSymbols, ...highCapSymbols, ...newGemsSymbols, ...dynamicTopGainers]));
+      targetSymbols = Array.from(new Set([...preBreakoutMovers, ...dynamicTopGainers]));
     }
     const now = Date.now();
 
