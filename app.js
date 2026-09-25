@@ -2273,7 +2273,8 @@ class ScalperApp {
 
     const isBuy = (sig.dir === 'LONG' || sig.direction === 'LONG' || sig.type === 'BUY');
     const sym = (sig.symbol || this.symbol || 'BTCUSDT').toUpperCase();
-    const decimals = sig.decimals || this.getPriceDecimals(sym);
+    const entryPrice = parseFloat(sig.entry || sig.price || sig.entryPrice || 0);
+    const decimals = sig.decimals || (entryPrice < 0.0001 ? 8 : (entryPrice < 0.01 ? 6 : (entryPrice < 1 ? 4 : (entryPrice < 10 ? 3 : this.getPriceDecimals(sym)))));
 
     const badge = document.getElementById('rr-box-badge');
     if (badge) {
@@ -2289,11 +2290,11 @@ class ScalperApp {
 
     const scoreEl = document.getElementById('rr-box-score');
     if (scoreEl) {
-      const scoreVal = sig.score100 || (sig.score ? (sig.score <= 10 ? Math.round((sig.score / 8) * 100) : sig.score) : 85);
+      const rawScore = sig.score100 || sig.score || 85;
+      const scoreVal = Math.min(99, Math.max(50, Math.round(rawScore <= 10 ? (rawScore / 8) * 100 : rawScore)));
       scoreEl.textContent = `Score: ${scoreVal}/100`;
     }
 
-    const entryPrice = parseFloat(sig.entry || sig.price || sig.entryPrice || 0);
     const entryEl = document.getElementById('rr-box-entry');
     if (entryEl) entryEl.textContent = entryPrice > 0 ? `$${entryPrice.toFixed(decimals)}` : '---';
 
@@ -2456,18 +2457,25 @@ class ScalperApp {
 
     // 3. Render Risk/Reward Box & Hero Banner
     if (signal) {
+      const rawEntry = parseFloat(signal.entry || signal.price || signal.currentPrice || signal.entryPrice || 0);
+      const rawScore = signal.score100 || signal.score || 85;
+      const scoreVal = Math.min(99, Math.max(50, Math.round(rawScore <= 10 ? (rawScore / 8) * 100 : rawScore)));
+      const decimalsVal = signal.decimals || (rawEntry < 0.0001 ? 8 : (rawEntry < 0.01 ? 6 : (rawEntry < 1 ? 4 : (rawEntry < 10 ? 3 : this.getPriceDecimals(cleanSym)))));
+
       const sigObj = {
         symbol: cleanSym,
         dir: signal.dir || signal.direction || (signal.type === 'BUY' ? 'LONG' : 'SHORT'),
         type: signal.type || ((signal.dir === 'LONG' || signal.direction === 'LONG') ? 'BUY' : 'SELL'),
-        entry: signal.entry || signal.price || signal.currentPrice || signal.entryPrice,
-        price: signal.entry || signal.price || signal.currentPrice || signal.entryPrice,
-        sl: signal.sl || signal.stopLoss,
-        tp1: signal.tp1 || signal.takeProfit,
-        tp2: signal.tp2,
-        tp3: signal.tp3,
-        score: signal.score || 8,
-        score100: signal.score100 || Math.round(((signal.score || 8)/8)*100),
+        entry: rawEntry,
+        price: rawEntry,
+        sl: parseFloat(signal.sl || signal.stopLoss || 0),
+        tp1: parseFloat(signal.tp1 || signal.takeProfit || 0),
+        tp2: parseFloat(signal.tp2 || 0),
+        tp3: parseFloat(signal.tp3 || 0),
+        score: scoreVal,
+        score100: scoreVal,
+        decimals: decimalsVal,
+        timeframe: targetTf,
         reasons: signal.reasons || [signal.description || 'High conviction setup']
       };
 
@@ -2479,8 +2487,8 @@ class ScalperApp {
       if (this.dom.dock && this.dom.dock.slInput) {
         this.dom.dock.enableTpsl.checked = true;
         this.dom.dock.tpslContainer.style.display = 'block';
-        if (sigObj.sl) this.dom.dock.slInput.value = Number(sigObj.sl).toFixed(this.getPriceDecimals(cleanSym));
-        if (sigObj.tp2 || sigObj.tp1) this.dom.dock.tpInput.value = Number(sigObj.tp2 || sigObj.tp1).toFixed(this.getPriceDecimals(cleanSym));
+        if (sigObj.sl) this.dom.dock.slInput.value = Number(sigObj.sl).toFixed(decimalsVal);
+        if (sigObj.tp2 || sigObj.tp1) this.dom.dock.tpInput.value = Number(sigObj.tp2 || sigObj.tp1).toFixed(decimalsVal);
       }
     }
 
@@ -4033,8 +4041,14 @@ class ScalperApp {
   }
 
   getPriceDecimals(sym = this.symbol) {
-    const spec = this.getInstrumentSpec(sym);
-    return spec ? spec.priceDecimals : 2;
+    if (this.instruments && this.instruments[sym]) {
+      return this.instruments[sym].priceDecimals;
+    }
+    const livePrice = (this.livePrices && this.livePrices[sym]) ? this.livePrices[sym].price : 0;
+    if (livePrice > 0) {
+      return livePrice < 0.0001 ? 8 : (livePrice < 0.01 ? 6 : (livePrice < 1 ? 4 : (livePrice < 10 ? 3 : 2)));
+    }
+    return 2;
   }
 
   getQtyDecimals(sym = this.symbol) {
