@@ -4846,23 +4846,32 @@ class ScalperApp {
             return null; // Reject late entries!
           }
 
-          // 8. ACCURATE 100-POINT MULTI-FACTOR CONFLUENCE SCORE
-          let score = 55; // Base score
-          if (volRatio >= 2.0) score += 20;
-          else if (volRatio >= 1.5) score += 14;
-          else score += 8;
+          // 8. DYNAMIC & ACCURATE 100-POINT CONFLUENCE CALIBRATION
+          let score = 40; // Base score
+          if (volRatio >= 3.0) score += 16;
+          else if (volRatio >= 2.0) score += 12;
+          else if (volRatio >= 1.5) score += 8;
+          else score += 4;
 
           if (isEmaAligned) score += 15;
-          else score -= 20; // Heavy penalty for counter-trend fakeouts!
+          else score -= 15; // Heavy penalty for counter-trend fakeouts!
 
-          if ((isBullish && rsi >= 48 && rsi <= 68) || (isBearish && rsi >= 32 && rsi <= 52)) score += 10;
-          if (bodyRatio >= 0.55) score += 8;
-          if (isBigMoveBrewing) score += 10;
+          const isRsiIdeal = (isBullish && rsi >= 48 && rsi <= 64) || (isBearish && rsi >= 36 && rsi <= 52);
+          if (isRsiIdeal) score += 10;
+          else score += 4;
 
-          if (score > 98) score = 98;
-          if (score < 80) return null; // STRICT 80+ THRESHOLD: Suppress all fakeouts!
+          if (bodyRatio >= 0.60) score += 10;
+          else if (bodyRatio >= 0.50) score += 6;
 
-          const winProb = Math.min(96, Math.max(82, Math.floor(score * 0.94)));
+          if (isBigMoveBrewing) score += 8;
+
+          // Deduct points if total move is over-extended (> 1.0%)
+          if (Math.abs(totalMovePct) > 1.0) score -= 6;
+
+          if (score > 94) score = 94;
+          if (score < 75) return null; // Suppress sub-75 setups
+
+          const winProb = Math.min(83, Math.max(68, Math.round(score * 0.86)));
           const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : 2));
 
           const sigObj = {
