@@ -4588,9 +4588,10 @@ class ScalperApp {
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem('crypto_scalper_meme_cache_v3');
         localStorage.removeItem('crypto_scalper_meme_cache_v4');
+        localStorage.removeItem('crypto_scalper_meme_cache_v5');
         localStorage.removeItem('crypto_scalper_meme_signals_v2');
 
-        const raw = localStorage.getItem('crypto_scalper_meme_cache_v5');
+        const raw = localStorage.getItem('crypto_scalper_meme_cache_v6');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object') {
@@ -4601,6 +4602,7 @@ class ScalperApp {
               // Auto-purge old saturated cards, SL_HIT, or invalidated trades!
               if (item && (now - (item.time || 0)) < 14400000) {
                 if (item.status !== 'SL_HIT' && !item.shouldExit) {
+                  item.score = Math.min(99, Math.max(50, Math.round(item.score || 85)));
                   cleaned[sym] = item;
                 }
               }
@@ -4616,7 +4618,7 @@ class ScalperApp {
   saveMemeCache() {
     try {
       if (typeof localStorage !== 'undefined' && this.memeSignalsCache) {
-        localStorage.setItem('crypto_scalper_meme_cache_v5', JSON.stringify(this.memeSignalsCache));
+        localStorage.setItem('crypto_scalper_meme_cache_v6', JSON.stringify(this.memeSignalsCache));
       }
     } catch (e) {}
   }
@@ -4998,6 +5000,8 @@ class ScalperApp {
             score = Math.round((score + (engineSig.score100 || 82)) / 2);
           }
 
+          score = Math.min(99, Math.max(50, Math.round(score)));
+
           // Pre-Breakout Big Move Expansion Calculations
           const t24 = tickerMap24h[symbol] || { change24h: 0, volume24h: 0 };
           const change24h = t24.change24h;
@@ -5014,8 +5018,9 @@ class ScalperApp {
           const projectedMoveMax = Math.max(8.0, Math.min(25.0, (atr / confirmedBar.close * 100 * 6.5))).toFixed(1);
           const projectedMove = `Target +${projectedMoveMin}% to +${projectedMoveMax}%`;
 
+          const samplePrice = entry || confirmedBar.close;
+          const decimals = samplePrice < 0.0001 ? 8 : (samplePrice < 0.001 ? 7 : (samplePrice < 0.01 ? 6 : (samplePrice < 1 ? 4 : (samplePrice < 10 ? 3 : 2))));
           const winProb = Math.min(96, Math.max(72, Math.round(score * 0.92)));
-          const decimals = this.getPriceDecimals(symbol);
 
           const sigObj = {
             symbol,
@@ -5101,10 +5106,19 @@ class ScalperApp {
       const loader = container.querySelector('.loading-state-box');
       if (loader) loader.remove();
 
+      const fmtVal = (val) => {
+        if (val == null || isNaN(val) || val === 0) return '0.00';
+        const num = Number(val);
+        const abs = Math.abs(num);
+        const dec = abs < 0.0001 ? 8 : (abs < 0.001 ? 7 : (abs < 0.01 ? 6 : (abs < 1 ? 4 : (abs < 10 ? 3 : 2))));
+        return num.toFixed(dec);
+      };
+
       topSetups.forEach(item => {
         let card = existingCardsMap[item.symbol];
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
         const isTopPick = (item.symbol === topPickSymbol) && (item.status !== 'SL_HIT') && (!item.shouldExit);
+        const cardScore = Math.min(99, Math.max(50, Math.round(item.score || 85)));
 
         let cardStyle = isTopPick
           ? `border:2px solid #ffd700; box-shadow:0 0 18px rgba(255,215,0,0.35); background:linear-gradient(180deg, rgba(255,215,0,0.08) 0%, rgba(20,25,38,0.95) 100%);`
@@ -5114,7 +5128,7 @@ class ScalperApp {
         if (isTopPick) {
           topPickBannerHtml = `
             <div style="background:linear-gradient(90deg, #ffd700, #ffaa00); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(255,215,0,0.4);">
-              🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE ACCURACY (${item.score}/100)
+              🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE ACCURACY (${cardScore}/100)
             </div>
           `;
         } else if (item.isParabolicMovers || item.isTopGainer) {
@@ -5154,7 +5168,7 @@ class ScalperApp {
           cardStyle = `border:2px solid #ff3b30; opacity:0.9;`;
           exitAdvisoryHtml = `
             <div class="rr-box-advisory exit-warning" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(255,59,48,0.25); border:1.5px solid #ff3b30; color:#ff3b30; font-weight:800;">
-              🔴 STOP LOSS HIT ($${item.sl.toFixed(item.decimals)}) • Trade Closed (${pnlStr})
+              🔴 STOP LOSS HIT ($${fmtVal(item.sl)}) • Trade Closed (${pnlStr})
             </div>
           `;
         } else if ((item.status === 'TP3_HIT' || item.status === 'TP2_HIT' || item.status === 'TP1_HIT') && livePnl >= 0) {
@@ -5213,8 +5227,8 @@ class ScalperApp {
             ${whaleBadge}
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
-            <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${item.score}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
-            <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">$${item.price.toFixed(item.decimals)}</span>
+            <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
+            <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">$${fmtVal(item.price)}</span>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px 8px; border-radius:6px; margin:6px 0; font-size:11px;">
             <span style="color:var(--text-muted);">🐋 Taker Orderflow:</span>
@@ -5224,12 +5238,12 @@ class ScalperApp {
           </div>
           ${exitAdvisoryHtml}
           <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;">
-            <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">$${item.sl.toFixed(item.decimals)}</b></div>
-            <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">$${item.tp1.toFixed(item.decimals)}</b></div>
-            <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">$${item.tp2.toFixed(item.decimals)}</b></div>
-            <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">$${item.tp3.toFixed(item.decimals)}</b></div>
+            <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">$${fmtVal(item.sl)}</b></div>
+            <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">$${fmtVal(item.tp1)}</b></div>
+            <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">$${fmtVal(item.tp2)}</b></div>
+            <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">$${fmtVal(item.tp3)}</b></div>
           </div>
-          <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
+          <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
             ${isTopPick ? '🚀 EXECUTE #1 PRIME TRADE' : '⚡ View Chart & Signal'}
           </button>
         `;
