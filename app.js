@@ -4519,6 +4519,11 @@ class ScalperApp {
       }
     });
 
+    if (this.memeScanInterval) {
+      clearInterval(this.memeScanInterval);
+      this.memeScanInterval = null;
+    }
+
     if (tabId === 'terminal') {
       if (this.chart) {
         const container = document.getElementById('chart-container');
@@ -4529,6 +4534,7 @@ class ScalperApp {
       }
     } else if (tabId === 'memecoins') {
       this.refreshMemeCoinTracker();
+      this.memeScanInterval = setInterval(() => this.refreshMemeCoinTracker(true), 15000);
     } else if (tabId === 'scanner') {
       this.refreshScanner();
     } else if (tabId === 'analytics') {
@@ -4536,11 +4542,19 @@ class ScalperApp {
     }
   }
 
-  async refreshMemeCoinTracker() {
+  async refreshMemeCoinTracker(isAutoScan = false) {
     const container = document.getElementById('memecoin-cards-container');
     const refreshBtn = document.getElementById('memecoin-refresh-btn');
+    const statusPill = document.getElementById('memecoin-status');
+    if (statusPill) {
+      statusPill.className = 'status-pill online';
+      statusPill.textContent = '⚡ REAL-TIME SCANNER ACTIVE (Auto 15s)';
+    }
+
     if (refreshBtn) refreshBtn.classList.add('rotating');
-    if (container) container.innerHTML = '<div class="loading-state-box">⚡ Scanning 24 Top Meme Coins for Whale Volume Surges, Liquidity Sweeps, and High-Accuracy Signals...</div>';
+    if (container && !isAutoScan && container.children.length === 0) {
+      container.innerHTML = '<div class="loading-state-box">⚡ Active Scanning 24 Top Meme Coins for Early Consolidation Breakouts & Whale Volume Surges...</div>';
+    }
 
     if (!this.memeSignalsCache) this.memeSignalsCache = {};
 
@@ -4572,23 +4586,15 @@ class ScalperApp {
           }));
 
           const confirmedBar = candles[candles.length - 2];
+          const latestBar = candles[candles.length - 1];
           const prev20 = candles.slice(-22, -2);
           const avgVol = prev20.reduce((s, c) => s + c.volume, 0) / prev20.length;
           const volRatio = avgVol > 0 ? (confirmedBar.volume / avgVol) : 1;
 
-          const refBar = candles[candles.length - 7];
-          const changePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
-
-          let sumRange = 0;
-          for (let i = candles.length - 17; i < candles.length - 2; i++) {
-            sumRange += (candles[i].high - candles[i].low);
-          }
-          const atr = sumRange / 15;
-
-          // Check if locked signal is still active within 4-hour trade window and hasn't completed
+          // 1. Check if locked active trade signal exists within 4-hour window
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
-            const curClose = candles[candles.length - 1].close;
+            const curClose = latestBar.close;
             const isTp3Hit = (cached.dir === 'LONG') ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
             const isSlHit = (cached.dir === 'LONG') ? (curClose <= cached.sl) : (curClose >= cached.sl);
             if ((now - cached.time) < 14400000 && !isTp3Hit && !isSlHit) {
@@ -4596,20 +4602,49 @@ class ScalperApp {
             }
           }
 
-          // Strict breakout verification (requires volume surge or price momentum)
-          const isBullish = volRatio >= 1.25 && changePct > 0.15;
-          const isBearish = volRatio >= 1.25 && changePct < -0.15;
+          // 2. Early Breakout & Momentum Calculations
+          const refBar = candles[candles.length - 6];
+          const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
+          const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
+
+          // 3. OVER-EXTENSION GUARD: Reject signals if price has ALREADY moved > 1.8% in last 5 bars or > 1.35% in 1 bar!
+          // This prevents triggering signals at the peak/bottom of an already extended pump or dump.
+          if (Math.abs(totalMovePct) > 1.8 || Math.abs(singleBarMovePct) > 1.35) {
+            return null;
+          }
+
+          // 4. Early Base Breakout Verification (Whale volume surge + early base move)
+          const isBullish = volRatio >= 1.20 && totalMovePct > 0.05 && totalMovePct <= 1.8;
+          const isBearish = volRatio >= 1.20 && totalMovePct < -0.05 && totalMovePct >= -1.8;
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
-          const entry = confirmedBar.close;
-          const sl = (dir === 'SHORT') ? entry + (atr * 1.5) : entry - (atr * 1.5);
+
+          // 5. Early Base Entry Level (Set near base support/resistance, not peak of pump)
+          const entry = (dir === 'LONG') 
+            ? Math.min(confirmedBar.close, confirmedBar.open + (confirmedBar.high - confirmedBar.open) * 0.35)
+            : Math.max(confirmedBar.close, confirmedBar.open - (confirmedBar.open - confirmedBar.low) * 0.35);
+
+          let sumRange = 0;
+          for (let i = candles.length - 17; i < candles.length - 2; i++) {
+            sumRange += (candles[i].high - candles[i].low);
+          }
+          const atr = sumRange / 15;
+
+          const sl = (dir === 'SHORT') ? entry + (atr * 1.3) : entry - (atr * 1.3);
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
           const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
           const tp3 = (dir === 'SHORT') ? entry - (risk * 5.0) : entry + (risk * 5.0);
 
-          let score = 72 + Math.min(22, Math.floor(volRatio * 6)) + (Math.abs(changePct) > 1.2 ? 4 : 0);
+          // 6. LATE ENTRY GUARD: If current live price has ALREADY reached closer to TP1 than Entry, reject signal!
+          const distToTp1 = Math.abs(latestBar.close - tp1);
+          const distToEntry = Math.abs(latestBar.close - entry);
+          if (distToTp1 < distToEntry) {
+            return null; // Reject late entries!
+          }
+
+          let score = 78 + Math.min(18, Math.floor(volRatio * 5));
           if (score > 98) score = 98;
 
           const winProb = Math.min(96, Math.max(82, Math.floor(score * 0.94)));
@@ -4618,7 +4653,7 @@ class ScalperApp {
           const sigObj = {
             symbol,
             price: entry,
-            changePct,
+            changePct: totalMovePct,
             volRatio,
             dir,
             entry,
@@ -4642,16 +4677,14 @@ class ScalperApp {
         }
       }));
 
-      // Filter for highest conviction setups only (Score >= 76), sorted by score & win-rate, capped at Top 5
-      const allValid = results.filter(Boolean).sort((a, b) => b.score - a.score);
-      const highConviction = allValid.filter(item => item.score >= 76);
-      const topSetups = (highConviction.length > 0 ? highConviction : allValid).slice(0, 5);
+      // Render ALL active early breakout setups sorted by score (no artificial 5-item cap)
+      const topSetups = results.filter(Boolean).sort((a, b) => b.score - a.score);
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) return;
 
       if (topSetups.length === 0) {
-        container.innerHTML = '<div class="loading-state-box">⚡ Scanning for High-Accuracy Meme Coin Setups (Score 80+)...</div>';
+        container.innerHTML = '<div class="loading-state-box">⚡ Scanning for Early Consolidation Breakouts (Score 80+)...</div>';
         return;
       }
 
