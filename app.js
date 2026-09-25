@@ -4882,6 +4882,11 @@ class ScalperApp {
               cached.status = 'TP2_HIT';
             } else if (isTp1Hit) {
               cached.status = 'TP1_HIT';
+            } else if (cached.status === 'TP1_HIT' || cached.status === 'TP2_HIT') {
+              // If price retraced below entry after touching TP, update status to active retracement
+              if ((isLong && curClose < cached.entry) || (!isLong && curClose > cached.entry)) {
+                cached.status = 'RETRACEMENT';
+              }
             }
 
             // Auto-purge old setup cards after 4 hours or if SL was hit over 15 mins ago
@@ -5136,19 +5141,22 @@ class ScalperApp {
         }
 
         let exitAdvisoryHtml = '';
+        const livePnl = item.pnlPct !== undefined ? item.pnlPct : 0;
+        const pnlStr = `${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%`;
+
         if (item.status === 'SL_HIT') {
           cardStyle = `border:2px solid #ff3b30; opacity:0.9;`;
           exitAdvisoryHtml = `
             <div class="rr-box-advisory exit-warning" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(255,59,48,0.25); border:1.5px solid #ff3b30; color:#ff3b30; font-weight:800;">
-              🔴 STOP LOSS HIT ($${item.sl.toFixed(item.decimals)}) • Trade Closed (${(item.pnlPct || 0).toFixed(2)}%)
+              🔴 STOP LOSS HIT ($${item.sl.toFixed(item.decimals)}) • Trade Closed (${pnlStr})
             </div>
           `;
-        } else if (item.status === 'TP3_HIT' || item.status === 'TP2_HIT' || item.status === 'TP1_HIT') {
+        } else if ((item.status === 'TP3_HIT' || item.status === 'TP2_HIT' || item.status === 'TP1_HIT') && livePnl >= 0) {
           cardStyle = `border:2px solid #00e676;`;
           const tpLabel = item.status === 'TP3_HIT' ? 'TP3' : (item.status === 'TP2_HIT' ? 'TP2' : 'TP1');
           exitAdvisoryHtml = `
             <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(0,230,118,0.2); border:1.5px solid #00e676; color:#00e676; font-weight:800;">
-              🚀 TARGET ${tpLabel} HIT • Profit Secured (+${(item.pnlPct || 0).toFixed(2)}%)
+              🚀 TARGET ${tpLabel} HIT • Profit Secured (${pnlStr})
             </div>
           `;
         } else if (item.shouldExit) {
@@ -5159,7 +5167,6 @@ class ScalperApp {
             </div>
           `;
         } else if (item.entry) {
-          const livePnl = item.pnlPct !== undefined ? item.pnlPct : 0;
           const curPrice = item.currentPrice || item.price || item.entry;
           const isLong = item.dir === 'LONG';
           let statusTag = '🟢 TRADE INTACT';
@@ -5182,7 +5189,7 @@ class ScalperApp {
 
           exitAdvisoryHtml = `
             <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center;">
-              ${statusTag} • Live PnL: ${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%
+              ${statusTag} • Live PnL: ${pnlStr}
             </div>
           `;
         }
