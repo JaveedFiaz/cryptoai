@@ -4803,6 +4803,10 @@ class ScalperApp {
           const ema50 = this.calcEMA(closes, 50);
           const rsi = this.calcRSI(closes, 14);
 
+          // Intraday Session VWAP Calculation
+          const vwapArr = (typeof ScalperEngine !== 'undefined' && ScalperEngine.calcVWAP) ? ScalperEngine.calcVWAP(candles) : null;
+          const currentVwap = (vwapArr && vwapArr.length > 1) ? vwapArr[vwapArr.length - 2] : confirmedBar.close;
+
           let sumRange = 0;
           for (let i = candles.length - 17; i < candles.length - 2; i++) {
             sumRange += (candles[i].high - candles[i].low);
@@ -4820,25 +4824,31 @@ class ScalperApp {
             return null;
           }
 
-          // 4. Directional Breakout Verification with Orderflow & BTC Trend Alignment
-          const isBullish = (volRatio >= 0.95) && (totalMovePct >= 0.04) && (totalMovePct <= 2.2) && (orderFlowBuyPct >= 47) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 58);
-          const isBearish = (volRatio >= 0.95) && (totalMovePct <= -0.04) && (totalMovePct >= -2.2) && (orderFlowBuyPct <= 53) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 42);
+          // 4. Directional Breakout Verification with Orderflow (>=50% Buy for Long) & BTC Alignment
+          const isBullish = (volRatio >= 1.05 || isBigMoveBrewing) && (totalMovePct >= 0.04) && (totalMovePct <= 2.2) && (orderFlowBuyPct >= 50.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 58);
+          const isBearish = (volRatio >= 1.05 || isBigMoveBrewing) && (totalMovePct <= -0.04) && (totalMovePct >= -2.2) && (orderFlowBuyPct <= 50.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 42);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
 
-          // 5. 5-PILLAR CONFLUENCE FILTERING
+          // 5. 6-PILLAR CONFLUENCE FILTERING (EMA + VWAP Alignment)
           const isEmaAligned = isBullish 
             ? (ema20 && ema50 && confirmedBar.close > ema20)
             : (ema20 && ema50 && confirmedBar.close < ema20);
 
           if (!isEmaAligned) return null; // Reject counter-trend fakeouts
 
-          if (isBullish && rsi > 72) return null; // Overbought guard
-          if (isBearish && rsi < 28) return null; // Oversold guard
+          const isVwapAligned = isBullish
+            ? (confirmedBar.close >= currentVwap)
+            : (confirmedBar.close <= currentVwap);
+
+          if (!isVwapAligned) return null; // Reject counter-VWAP trades into institutional resistance
+
+          if (isBullish && rsi > 70) return null; // Overbought guard
+          if (isBearish && rsi < 30) return null; // Oversold guard
 
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
-          if (bodyRatio < 0.38) return null; // Reject thin doji traps
+          if (bodyRatio < 0.40) return null; // Reject thin doji traps
 
           // 6. Entry & ATR SL Buffer (1.5x ATR)
           const entry = (dir === 'LONG') 
@@ -4865,23 +4875,24 @@ class ScalperApp {
           else if (volRatio >= 1.0) score += 5;
 
           if (isEmaAligned) score += 15;
+          if (isVwapAligned) score += 10;
           if ((isBullish && rsi >= 45 && rsi <= 65) || (isBearish && rsi >= 35 && rsi <= 55)) score += 10;
           if (bodyRatio >= 0.55) score += 10;
           if (isBigMoveBrewing) score += 10;
 
           // Orderflow score boost
-          if (isBullish && orderFlowBuyPct >= 58) score += 12;
-          if (isBearish && orderFlowBuyPct <= 42) score += 12;
+          if (isBullish && orderFlowBuyPct >= 56) score += 12;
+          if (isBearish && orderFlowBuyPct <= 44) score += 12;
 
           // Blend with ScalperEngine score if available
           if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL')) {
-            score = Math.round((score + (engineSig.score100 || 80)) / 2);
+            score = Math.round((score + (engineSig.score100 || 82)) / 2);
           }
 
-          if (score > 94) score = 94;
-          if (score < 75) return null; // 75+ Score Threshold for reliable breakout detection
+          if (score > 96) score = 96;
+          if (score < 80) return null; // 80+ Score Threshold for Grade A / A+ signals
 
-          const winProb = Math.min(84, Math.max(70, Math.round(score * 0.86)));
+          const winProb = Math.min(88, Math.max(76, Math.round(score * 0.90)));
           const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : (entry < 10 ? 3 : 2)));
 
           const sigObj = {
