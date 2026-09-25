@@ -4933,9 +4933,9 @@ class ScalperApp {
             return null;
           }
 
-          // 4. Directional Breakout Verification with Orderflow (>=50% Buy for Long) & BTC Alignment
-          const isBullish = (volRatio >= 1.05 || isBigMoveBrewing) && (totalMovePct >= 0.04) && (totalMovePct <= 2.2) && (orderFlowBuyPct >= 50.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 58);
-          const isBearish = (volRatio >= 1.05 || isBigMoveBrewing) && (totalMovePct <= -0.04) && (totalMovePct >= -2.2) && (orderFlowBuyPct <= 50.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 42);
+          // 4. Directional Breakout Verification with Orderflow & BTC Alignment
+          const isBullish = (volRatio >= 0.85 || isBigMoveBrewing || orderFlowBuyPct >= 55) && (totalMovePct >= 0.01) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 48.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 58);
+          const isBearish = (volRatio >= 0.85 || isBigMoveBrewing || orderFlowBuyPct <= 45) && (totalMovePct <= -0.01) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 52.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 42);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
@@ -4953,11 +4953,11 @@ class ScalperApp {
 
           if (!isVwapAligned) return null; // Reject counter-VWAP trades into institutional resistance
 
-          if (isBullish && rsi > 70) return null; // Overbought guard
-          if (isBearish && rsi < 30) return null; // Oversold guard
+          if (isBullish && rsi > 72) return null; // Overbought guard
+          if (isBearish && rsi < 28) return null; // Oversold guard
 
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
-          if (bodyRatio < 0.40) return null; // Reject thin doji traps
+          if (bodyRatio < 0.20) return null; // Reject thin doji traps
 
           // 6. Entry & ATR SL Buffer (1.5x ATR)
           const entry = (dir === 'LONG') 
@@ -5013,6 +5013,9 @@ class ScalperApp {
           const projectedMoveMin = Math.max(3.5, Math.min(12.0, (atr / confirmedBar.close * 100 * 3.0))).toFixed(1);
           const projectedMoveMax = Math.max(8.0, Math.min(25.0, (atr / confirmedBar.close * 100 * 6.5))).toFixed(1);
           const projectedMove = `Target +${projectedMoveMin}% to +${projectedMoveMax}%`;
+
+          const winProb = Math.min(96, Math.max(72, Math.round(score * 0.92)));
+          const decimals = this.getPriceDecimals(symbol);
 
           const sigObj = {
             symbol,
