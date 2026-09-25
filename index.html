@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crypto Scalper Pro [v7] - MEXC Real-Time Trading Terminal</title>
-  <link rel="stylesheet" href="styles.css?v=9.7.2">
+  <link rel="stylesheet" href="styles.css?v=9.7.3">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -107,7 +107,7 @@
        ======================================================================== -->
   <nav class="terminal-subnav">
     <button class="subnav-tab active" data-tab="terminal">Terminal &amp; Chart</button>
-    <button class="subnav-tab" data-tab="memecoins">🔥 Meme Coin Signals</button>
+    <button class="subnav-tab" data-tab="memecoins">⚡ Whale Radar &amp; Signals</button>
     <button class="subnav-tab" data-tab="scanner">Intraday Scanner</button>
     <button class="subnav-tab" data-tab="analytics">Performance Analytics</button>
     <button class="subnav-tab" data-tab="backtest">Historical Backtest</button>
@@ -563,21 +563,27 @@
   </div> <!-- /tab-terminal -->
 
   <!-- ========================================================================
-       TAB PANE 2: MEME COIN WHALE TRACKER & HIGH ACCURACY SIGNALS
+       TAB PANE 2: INSTITUTIONAL WHALE RADAR & ORDERFLOW SCANNER
        ======================================================================== -->
   <div id="tab-memecoins" class="tab-pane" style="display:none; padding:16px;">
     <div class="panel-header-bar">
       <div class="panel-title-group">
-        <span class="panel-main-title">🔥 Meme Coin Whale Tracker &amp; High-Accuracy Signals</span>
-        <span class="panel-subtitle">Real-time volume surge, whale orderflow &amp; liquidity sweep signals for top Meme Coins (PEPE, DOGE, SHIB, FLOKI, BONK, WIF, MEME, SUI)</span>
+        <span class="panel-main-title">⚡ Institutional Whale Radar &amp; Orderflow Scanner</span>
+        <span class="panel-subtitle">Real-time taker orderflow imbalance, whale volume surges &amp; pre-breakout accumulation alerts for Meme Coins &amp; High Cap Crypto</span>
       </div>
       <div class="panel-actions">
         <span class="status-pill online" id="memecoin-status">WHALE RADAR ACTIVE</span>
-        <button class="ctrl-btn refresh-btn" id="memecoin-refresh-btn">🔄 Scan Meme Coins</button>
+        <button class="ctrl-btn refresh-btn" id="memecoin-refresh-btn">🔄 Scan Radar</button>
       </div>
     </div>
+    
+    <div class="category-toggle-pills" style="display:flex; gap:10px; margin-bottom:16px; align-items:center;">
+      <button id="cat-btn-memecoins" class="category-pill active" data-category="memecoins">🔥 Meme Coins (24 Pairs)</button>
+      <button id="cat-btn-highcap" class="category-pill" data-category="highcap">🏦 High Market Cap (20 Pairs)</button>
+    </div>
+
     <div class="scanner-cards-grid" id="memecoin-cards-container">
-      <div class="loading-state-box">Scanning Meme Coins for whale volume spikes, sweeps, and high-confluence entry setups...</div>
+      <div class="loading-state-box">Scanning for whale volume spikes, orderflow sweeps, and high-confluence entry setups...</div>
     </div>
   </div>
 
@@ -1033,15 +1039,15 @@
   </div>
 
   <!-- Scripts -->
-  <script src="signals/marketStructure.js?v=9.7.2"></script>
-  <script src="signals/liquidityEngine.js?v=9.7.2"></script>
-  <script src="signals/mtfEngine.js?v=9.7.2"></script>
-  <script src="signals/scoringEngine.js?v=9.7.2"></script>
-  <script src="models.js?v=9.7.2"></script>
-  <script src="clientTradingEngine.js?v=9.7.2"></script>
-  <script src="alertService.js?v=9.7.2"></script>
-  <script src="engine.js?v=9.7.2"></script>
-  <script src="app.js?v=9.7.2"></script>
+  <script src="signals/marketStructure.js?v=9.7.3"></script>
+  <script src="signals/liquidityEngine.js?v=9.7.3"></script>
+  <script src="signals/mtfEngine.js?v=9.7.3"></script>
+  <script src="signals/scoringEngine.js?v=9.7.3"></script>
+  <script src="models.js?v=9.7.3"></script>
+  <script src="clientTradingEngine.js?v=9.7.3"></script>
+  <script src="alertService.js?v=9.7.3"></script>
+  <script src="engine.js?v=9.7.3"></script>
+  <script src="app.js?v=9.7.3"></script>
 
 
 

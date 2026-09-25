@@ -4675,14 +4675,39 @@ class ScalperApp {
     const container = document.getElementById('memecoin-cards-container');
     const refreshBtn = document.getElementById('memecoin-refresh-btn');
     const statusPill = document.getElementById('memecoin-status');
+
+    // Category Pills DOM Binding
+    const memeBtn = document.getElementById('cat-btn-memecoins');
+    const highCapBtn = document.getElementById('cat-btn-highcap');
+    if (memeBtn && !memeBtn.dataset.bound) {
+      memeBtn.dataset.bound = 'true';
+      memeBtn.addEventListener('click', () => {
+        this.activeMemeCategory = 'memecoins';
+        memeBtn.classList.add('active');
+        if (highCapBtn) highCapBtn.classList.remove('active');
+        this.refreshMemeCoinTracker();
+      });
+    }
+    if (highCapBtn && !highCapBtn.dataset.bound) {
+      highCapBtn.dataset.bound = 'true';
+      highCapBtn.addEventListener('click', () => {
+        this.activeMemeCategory = 'highcap';
+        highCapBtn.classList.add('active');
+        if (memeBtn) memeBtn.classList.remove('active');
+        this.refreshMemeCoinTracker();
+      });
+    }
+
+    if (!this.activeMemeCategory) this.activeMemeCategory = 'memecoins';
+
     if (statusPill) {
       statusPill.className = 'status-pill online';
-      statusPill.textContent = '⚡ REAL-TIME SCANNER ACTIVE (Auto 15s)';
+      statusPill.textContent = `⚡ REAL-TIME RADAR ACTIVE (${this.activeMemeCategory === 'highcap' ? 'HIGH CAP' : 'MEME COINS'})`;
     }
 
     if (refreshBtn) refreshBtn.classList.add('rotating');
     if (container && !isAutoScan && container.children.length === 0) {
-      container.innerHTML = '<div class="loading-state-box">⚡ Active Scanning 24 Top Meme Coins for Early Consolidation Breakouts & Whale Volume Surges...</div>';
+      container.innerHTML = `<div class="loading-state-box">⚡ Active Scanning ${this.activeMemeCategory === 'highcap' ? '20 Top High Market Cap Coins' : '24 Top Meme Coins'} for Orderflow Sweeps & Whale Accumulation...</div>`;
     }
 
     this.memeSignalsCache = this.loadMemeCache();
@@ -4695,9 +4720,17 @@ class ScalperApp {
       'GOATUSDT', 'MOODENGUSDT', 'ACTUSDT', 'PENGUUSDT'
     ];
 
+    const highCapSymbols = [
+      'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 
+      'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'NEARUSDT', 
+      'DOTUSDT', 'SUIUSDT', 'LTCUSDT', 'UNIUSDT', 'APTUSDT', 
+      'ARBUSDT', 'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT'
+    ];
+
+    const targetSymbols = (this.activeMemeCategory === 'highcap') ? highCapSymbols : memeSymbols;
     const now = Date.now();
 
-    // 0. Check Overall Bitcoin Market Regime (Prevent counter-market trades)
+    // 0. Check Overall Bitcoin Market Regime
     let btcTrend = 'NEUTRAL';
     try {
       const btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=5m&limit=50`);
@@ -4715,7 +4748,7 @@ class ScalperApp {
     } catch (e) {}
 
     try {
-      const results = await Promise.all(memeSymbols.map(async (symbol) => {
+      const results = await Promise.all(targetSymbols.map(async (symbol) => {
         try {
           const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=5m&limit=60`);
           if (!res.ok) return null;
@@ -4728,7 +4761,8 @@ class ScalperApp {
             high: parseFloat(k[2]),
             low: parseFloat(k[3]),
             close: parseFloat(k[4]),
-            volume: parseFloat(k[5])
+            volume: parseFloat(k[5]),
+            takerBuyVol: parseFloat(k[9]) || (parseFloat(k[5]) * 0.5)
           }));
 
           const confirmedBar = candles[candles.length - 2];
@@ -4737,14 +4771,19 @@ class ScalperApp {
           const avgVol = prev20.reduce((s, c) => s + c.volume, 0) / prev20.length;
           const volRatio = avgVol > 0 ? (confirmedBar.volume / avgVol) : 1;
 
+          // Real Taker Order Flow Calculations (Binance Orderflow Imbalance)
+          const takerBuyVol = confirmedBar.takerBuyVol || (confirmedBar.volume * 0.5);
+          const takerSellVol = Math.max(0.0001, confirmedBar.volume - takerBuyVol);
+          const orderFlowBuyPct = confirmedBar.volume > 0 ? (takerBuyVol / confirmedBar.volume) * 100 : 50;
+          const orderFlowRatio = takerSellVol > 0 ? (takerBuyVol / takerSellVol) : 1.0;
+
           const refBar = candles[candles.length - 6];
           const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
           const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
 
-          // 1. Check if locked active trade signal exists within 4-hour window
+          // 1. Check active trade signal in cache
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
-            // Auto-purge old saturated 98/100 cards or invalidated trades
             if (cached.score >= 98 || cached.status === 'SL_HIT' || cached.shouldExit) {
               delete this.memeSignalsCache[symbol];
               this.saveMemeCache();
@@ -4762,6 +4801,8 @@ class ScalperApp {
 
               cached.currentPrice = curClose;
               cached.pnlPct = pnlPct;
+              cached.orderFlowBuyPct = orderFlowBuyPct;
+              cached.orderFlowRatio = orderFlowRatio;
 
               if ((now - cached.time) > 14400000 || isSlHit) {
                 delete this.memeSignalsCache[symbol];
@@ -4795,7 +4836,7 @@ class ScalperApp {
                 if (isOppositeSurge || isStructureBroken) {
                   delete this.memeSignalsCache[symbol];
                   this.saveMemeCache();
-                  return null; // Purge invalidated trade to allow scanning new setups
+                  return null;
                 }
 
                 this.saveMemeCache();
@@ -4819,16 +4860,20 @@ class ScalperApp {
           }
           const atr = sumRange / 15;
           const squeezeRatio = (atr / confirmedBar.close) * 100;
+
+          // Pre-Breakout Alert: Volatility Squeeze + Orderflow Imbalance
           const isBigMoveBrewing = (squeezeRatio < 0.65) && (volRatio >= 1.35);
+          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 60);
+          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 40);
 
           // 3. OVER-EXTENSION GUARD
           if (Math.abs(totalMovePct) > 1.8 || Math.abs(singleBarMovePct) > 1.35) {
             return null;
           }
 
-          // 4. Directional Breakout Verification with BTC Trend Alignment
-          const isBullish = volRatio >= 1.30 && totalMovePct > 0.10 && totalMovePct <= 1.8 && (btcTrend !== 'BEARISH');
-          const isBearish = volRatio >= 1.30 && totalMovePct < -0.10 && totalMovePct >= -1.8 && (btcTrend !== 'BULLISH');
+          // 4. Directional Breakout Verification with Orderflow & BTC Trend Alignment
+          const isBullish = volRatio >= 1.25 && totalMovePct > 0.08 && totalMovePct <= 1.8 && (btcTrend !== 'BEARISH') && (orderFlowBuyPct >= 48);
+          const isBearish = volRatio >= 1.25 && totalMovePct < -0.08 && totalMovePct >= -1.8 && (btcTrend !== 'BULLISH') && (orderFlowBuyPct <= 52);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
@@ -4865,16 +4910,20 @@ class ScalperApp {
           }
 
           // 8. DYNAMIC 100-POINT CONFLUENCE SCORE
-          let score = 50; // Base score
-          if (volRatio >= 3.0) score += 18;
-          else if (volRatio >= 2.0) score += 14;
-          else if (volRatio >= 1.5) score += 10;
-          else score += 5;
+          let score = 45; // Base score
+          if (volRatio >= 3.0) score += 16;
+          else if (volRatio >= 2.0) score += 12;
+          else if (volRatio >= 1.5) score += 8;
+          else score += 4;
 
           if (isEmaAligned) score += 15;
           if ((isBullish && rsi >= 48 && rsi <= 62) || (isBearish && rsi >= 38 && rsi <= 52)) score += 10;
           if (bodyRatio >= 0.60) score += 10;
           if (isBigMoveBrewing) score += 8;
+
+          // Orderflow score boost
+          if (isBullish && orderFlowBuyPct >= 60) score += 10;
+          if (isBearish && orderFlowBuyPct <= 40) score += 10;
 
           // Blend with ScalperEngine score if available
           if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL')) {
@@ -4885,13 +4934,15 @@ class ScalperApp {
           if (score < 80) return null; // STRICT 80+ THRESHOLD: Suppress all fakeouts!
 
           const winProb = Math.min(84, Math.max(70, Math.round(score * 0.86)));
-          const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : 2));
+          const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : (entry < 10 ? 3 : 2)));
 
           const sigObj = {
             symbol,
             price: entry,
             changePct: totalMovePct,
             volRatio,
+            orderFlowBuyPct,
+            orderFlowRatio,
             dir,
             entry,
             sl,
@@ -4902,6 +4953,9 @@ class ScalperApp {
             winProb,
             decimals,
             isBigMoveBrewing,
+            isWhaleAccumulating,
+            isWhaleDistributing,
+            category: this.activeMemeCategory,
             time: now
           };
 
@@ -4923,7 +4977,8 @@ class ScalperApp {
       if (!container) return;
 
       if (topSetups.length === 0) {
-        container.innerHTML = '<div class="loading-state-box">⚡ Real-time Radar Active — Monitoring 24 Top Meme Coins. No new breakout setups meeting strict 80+ score criteria at this exact bar. Scanning automatically every 15s...</div>';
+        const catName = this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins';
+        container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new breakout setups meeting strict 80+ score criteria at this exact bar. Scanning automatically every 15s...</div>`;
         return;
       }
 
@@ -4934,11 +4989,20 @@ class ScalperApp {
         let cardStyle = `border:1px solid ${dirColor};`;
         card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
         
-        const whaleBadge = item.isBigMoveBrewing
-          ? `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${item.volRatio.toFixed(1)}x</span>`
-          : (item.volRatio >= 2.0 
-              ? `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 WHALE SPIKE ${item.volRatio.toFixed(1)}x</span>`
-              : `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`);
+        let whaleBadge = '';
+        if (item.isWhaleAccumulating) {
+          whaleBadge = `<span class="setup-badge" style="background:rgba(0,230,118,0.2); color:#00e676; font-weight:800; border:1px solid #00e676;">🚀 WHALE ACCUMULATION BREWING (${(item.orderFlowBuyPct || 50).toFixed(0)}% Buy)</span>`;
+        } else if (item.isWhaleDistributing) {
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">🩸 WHALE DISTRIBUTION BREWING (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Sell)</span>`;
+        } else if ((item.orderFlowRatio || 1) >= 1.75) {
+          whaleBadge = `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 INST. BUY SWEEP (${(item.orderFlowBuyPct || 50).toFixed(0)}% Taker)</span>`;
+        } else if ((item.orderFlowRatio || 1) <= 0.55) {
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800;">🩸 INST. SELL DUMP (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Taker)</span>`;
+        } else if (item.isBigMoveBrewing) {
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${item.volRatio.toFixed(1)}x</span>`;
+        } else {
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`;
+        }
 
         let exitAdvisoryHtml = '';
         if (item.status === 'SL_HIT') {
@@ -4992,6 +5056,9 @@ class ScalperApp {
           `;
         }
 
+        const buyPctVal = item.orderFlowBuyPct || 50;
+        const ratioVal = item.orderFlowRatio || 1.0;
+
         card.setAttribute('style', cardStyle);
         card.innerHTML = `
           <div class="setup-card-header">
@@ -5004,6 +5071,12 @@ class ScalperApp {
           <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
             <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${item.score}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
             <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">$${item.price.toFixed(item.decimals)}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px 8px; border-radius:6px; margin:6px 0; font-size:11px;">
+            <span style="color:var(--text-muted);">🐋 Taker Orderflow:</span>
+            <strong style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">
+              ${buyPctVal >= 50 ? '🟢' : '🔴'} ${buyPctVal.toFixed(0)}% Buy / ${(100 - buyPctVal).toFixed(0)}% Sell (${ratioVal.toFixed(1)}x)
+            </strong>
           </div>
           ${exitAdvisoryHtml}
           <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;">
@@ -5022,7 +5095,7 @@ class ScalperApp {
         container.appendChild(card);
       });
     } catch (e) {
-      if (container) container.innerHTML = `<div class="loading-state-box">Meme coin scanner error: ${e.message}</div>`;
+      if (container) container.innerHTML = `<div class="loading-state-box">Scanner error: ${e.message}</div>`;
     }
   }
 

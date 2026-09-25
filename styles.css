@@ -2881,6 +2881,31 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
 }
 
+/* Category Sub-Menu Pills */
+.category-pill {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.category-pill:hover {
+  border-color: var(--color-cyan);
+  color: #fff;
+}
+
+.category-pill.active {
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.18), rgba(0, 210, 255, 0.18));
+  border: 1.5px solid var(--color-cyan);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(0, 210, 255, 0.25);
+}
+
 .risk-reward-overlay-box {
   position: absolute;
   top: 40px;
