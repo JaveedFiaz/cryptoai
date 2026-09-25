@@ -4714,11 +4714,40 @@ class ScalperApp {
       'ARBUSDT', 'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT'
     ];
 
+    const newGemsSymbols = [
+      'PNUTUSDT', 'VIRTUALUSDT', 'AI16ZUSDT', 'CHILLGUYUSDT', 'GRASSUSDT',
+      'SPXUSDT', 'FARTCOINUSDT', 'MELANIAUSDT', '1000CATUSDT', 'MAJORUSDT',
+      'HIPPOUSDT', 'LUCEUSDT', 'DOGUSDT', 'NEIROUSDT', 'TRUMPUSDT'
+    ];
+
+    let dynamicTopGainers = [];
+    const tickerMap24h = {};
+    try {
+      const tickerRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr`);
+      if (tickerRes.ok) {
+        const tickers = await tickerRes.json();
+        if (Array.isArray(tickers)) {
+          tickers.forEach(t => {
+            if (t.symbol && t.symbol.endsWith('USDT')) {
+              const chg = parseFloat(t.priceChangePercent || 0);
+              const vol = parseFloat(t.quoteVolume || 0);
+              tickerMap24h[t.symbol] = { change24h: chg, volume24h: vol };
+            }
+          });
+          dynamicTopGainers = tickers
+            .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume || 0) > 20000000)
+            .sort((a, b) => parseFloat(b.priceChangePercent || 0) - parseFloat(a.priceChangePercent || 0))
+            .slice(0, 15)
+            .map(t => t.symbol);
+        }
+      }
+    } catch (e) {}
+
     let targetSymbols = memeSymbols;
     if (this.activeMemeCategory === 'highcap') {
       targetSymbols = highCapSymbols;
     } else if (this.activeMemeCategory === 'bigmoves') {
-      targetSymbols = Array.from(new Set([...memeSymbols, ...highCapSymbols]));
+      targetSymbols = Array.from(new Set([...memeSymbols, ...highCapSymbols, ...newGemsSymbols, ...dynamicTopGainers]));
     }
     const now = Date.now();
 
@@ -4913,19 +4942,26 @@ class ScalperApp {
           }
 
           // Pre-Breakout Big Move Expansion Calculations
-          const isPreBreakoutBigMove = isBigMoveBrewing || (squeezeRatio < 0.85 && (orderFlowBuyPct >= 56 || orderFlowBuyPct <= 44 || volRatio >= 1.15));
+          const t24 = tickerMap24h[symbol] || { change24h: 0, volume24h: 0 };
+          const change24h = t24.change24h;
+
+          const isParabolicMovers = (change24h >= 10.0) || (squeezeRatio < 0.70) || (volRatio >= 2.0);
+          const isTopGainer = change24h >= 15.0;
+
+          const isPreBreakoutBigMove = isBigMoveBrewing || (squeezeRatio < 0.85 && (orderFlowBuyPct >= 56 || orderFlowBuyPct <= 44 || volRatio >= 1.15)) || isParabolicMovers;
           if (this.activeMemeCategory === 'bigmoves' && !isPreBreakoutBigMove) {
             return null; // In Big Moves tab, filter strictly for coiled setups before breakout
           }
 
-          const projectedMoveMin = Math.max(2.5, Math.min(8.0, (atr / confirmedBar.close * 100 * 2.5))).toFixed(1);
-          const projectedMoveMax = Math.max(4.5, Math.min(14.0, (atr / confirmedBar.close * 100 * 5.0))).toFixed(1);
+          const projectedMoveMin = Math.max(3.5, Math.min(12.0, (atr / confirmedBar.close * 100 * 3.0))).toFixed(1);
+          const projectedMoveMax = Math.max(8.0, Math.min(25.0, (atr / confirmedBar.close * 100 * 6.5))).toFixed(1);
           const projectedMove = `Target +${projectedMoveMin}% to +${projectedMoveMax}%`;
 
           const sigObj = {
             symbol,
             price: entry,
             changePct: totalMovePct,
+            change24h,
             volRatio,
             orderFlowBuyPct,
             orderFlowRatio,
@@ -4942,6 +4978,8 @@ class ScalperApp {
             isWhaleAccumulating,
             isWhaleDistributing,
             isPreBreakoutBigMove,
+            isParabolicMovers,
+            isTopGainer,
             projectedMove,
             category: this.activeMemeCategory,
             time: now
@@ -4965,7 +5003,7 @@ class ScalperApp {
       if (!container) return;
 
       if (topSetups.length === 0) {
-        const catName = this.activeMemeCategory === 'bigmoves' ? 'Pre-Breakout Big Moves (Coiled Pairs)' : (this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins');
+        const catName = this.activeMemeCategory === 'bigmoves' ? 'Pre-Breakout Big Moves & Day Top Gainers' : (this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins');
         container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new pre-breakout squeeze setups meeting strict criteria at this bar. Scanning automatically...</div>`;
         return;
       }
@@ -5017,6 +5055,12 @@ class ScalperApp {
           topPickBannerHtml = `
             <div style="background:linear-gradient(90deg, #ffd700, #ffaa00); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(255,215,0,0.4);">
               🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE ACCURACY (${item.score}/100)
+            </div>
+          `;
+        } else if (item.isParabolicMovers || item.isTopGainer) {
+          topPickBannerHtml = `
+            <div style="background:linear-gradient(90deg, #ff0055, #ff5e00); color:#fff; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 10px rgba(255,0,85,0.4);">
+              🔥 100% - 1000% PARABOLIC POTENTIAL • DAY TOP GAINER (${item.change24h >= 0 ? '+' : ''}${(item.change24h || 0).toFixed(1)}% 24h)
             </div>
           `;
         } else if (item.isPreBreakoutBigMove) {
