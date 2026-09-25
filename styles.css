@@ -3107,5 +3107,45 @@ button.category-pill.active,
   }
 }
 
+@media (max-width: 600px) {
+  .category-toggle-pills {
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .category-pill {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .scanner-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .setup-card {
+    padding: 10px 12px !important;
+  }
+
+  .setup-targets-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    font-size: 10.5px !important;
+  }
+
+  .trade-meme-btn {
+    min-height: 44px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    touch-action: manipulation !important;
+  }
+}
+
 
 
