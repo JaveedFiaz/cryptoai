@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crypto Scalper Pro [v7] - MEXC Real-Time Trading Terminal</title>
-  <link rel="stylesheet" href="styles.css?v=9.6.1">
+  <link rel="stylesheet" href="styles.css?v=9.6.2">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -174,19 +174,7 @@
     <main class="main-workspace">
       <div class="chart-wrapper">
         <div class="chart-indicators-bar">
-          <div class="chart-engine-tabs">
-            <button class="chart-engine-btn active" id="btn-chart-tv" title="Official TradingView Advanced Chart (Full toolbars, add/delete RSI, MACD & all indicators)">📊 TradingView Advanced</button>
-            <button class="chart-engine-btn" id="btn-chart-native" title="Scalper Multi-Indicator Confluence View">⚡ Scalper Indicators</button>
-          </div>
-          <div class="ind-pill-group" id="native-ind-pills" style="display:none;">
-            <button class="ind-pill active" data-ind="ema20">EMA 20</button>
-            <button class="ind-pill active" data-ind="ema50">EMA 50</button>
-            <button class="ind-pill active" data-ind="ema200">EMA 200</button>
-            <button class="ind-pill active" data-ind="vwap">VWAP</button>
-            <button class="ind-pill active" data-ind="volume">Volume</button>
-            <button class="ind-pill active" data-ind="rsi">RSI</button>
-            <button class="ind-pill active" data-ind="macd">MACD</button>
-          </div>
+          <div style="font-size:12px; font-weight:800; color:var(--color-cyan); display:flex; align-items:center; gap:6px; letter-spacing:0.5px;">📊 TRADINGVIEW ADVANCED CHART</div>
           <div style="flex:1;"></div>
           <span class="tv-hint-text" id="tv-hint-text" style="font-size:11px; color:var(--color-cyan); margin-right:8px;">💡 Click <b>"Indicators"</b> on chart to add or delete RSI, MACD & any studies</span>
           <button id="btn-toggle-hud" class="chart-ctrl-btn" title="Show / Hide Crypto Scalper HUD Banner">👁 HUD</button>
@@ -1041,15 +1029,15 @@
   </div>
 
   <!-- Scripts -->
-  <script src="signals/marketStructure.js?v=9.6.1"></script>
-  <script src="signals/liquidityEngine.js?v=9.6.1"></script>
-  <script src="signals/mtfEngine.js?v=9.6.1"></script>
-  <script src="signals/scoringEngine.js?v=9.6.1"></script>
-  <script src="models.js?v=9.6.1"></script>
-  <script src="clientTradingEngine.js?v=9.6.1"></script>
-  <script src="alertService.js?v=9.6.1"></script>
-  <script src="engine.js?v=9.6.1"></script>
-  <script src="app.js?v=9.6.1"></script>
+  <script src="signals/marketStructure.js?v=9.6.2"></script>
+  <script src="signals/liquidityEngine.js?v=9.6.2"></script>
+  <script src="signals/mtfEngine.js?v=9.6.2"></script>
+  <script src="signals/scoringEngine.js?v=9.6.2"></script>
+  <script src="models.js?v=9.6.2"></script>
+  <script src="clientTradingEngine.js?v=9.6.2"></script>
+  <script src="alertService.js?v=9.6.2"></script>
+  <script src="engine.js?v=9.6.2"></script>
+  <script src="app.js?v=9.6.2"></script>
 
 
 
