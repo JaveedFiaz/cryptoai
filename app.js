@@ -4929,7 +4929,7 @@ class ScalperApp {
         }
       }));
 
-      // Sort active setups by Creation Time (newest first) to guarantee ZERO card position jumping
+      // Sort active setups by Creation Time (newest first)
       const topSetups = results.filter(Boolean).sort((a, b) => (b.time || 0) - (a.time || 0));
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
@@ -4939,6 +4939,29 @@ class ScalperApp {
         const catName = this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins';
         container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new breakout setups meeting strict criteria at this exact bar. Scanning automatically...</div>`;
         return;
+      }
+
+      // Identify the #1 Prime Setup among active non-SL setups based on score & orderflow quality
+      let topPickSymbol = null;
+      const activeSetups = topSetups.filter(s => s.status !== 'SL_HIT');
+      if (activeSetups.length > 0) {
+        const ranked = [...activeSetups].sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          const aOf = a.dir === 'LONG' ? (a.orderFlowBuyPct || 50) : (100 - (a.orderFlowBuyPct || 50));
+          const bOf = b.dir === 'LONG' ? (b.orderFlowBuyPct || 50) : (100 - (b.orderFlowBuyPct || 50));
+          if (bOf !== aOf) return bOf - aOf;
+          return (b.volRatio || 1) - (a.volRatio || 1);
+        });
+        topPickSymbol = ranked[0].symbol;
+      }
+
+      // Pin Top Pick setup to position #1 in grid
+      if (topPickSymbol) {
+        topSetups.sort((a, b) => {
+          if (a.symbol === topPickSymbol) return -1;
+          if (b.symbol === topPickSymbol) return 1;
+          return (b.time || 0) - (a.time || 0);
+        });
       }
 
       // Map existing card DOM nodes to update in-place smoothly
@@ -4954,7 +4977,17 @@ class ScalperApp {
       topSetups.forEach(item => {
         let card = existingCardsMap[item.symbol];
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
-        let cardStyle = `border:1px solid ${dirColor};`;
+        const isTopPick = (item.symbol === topPickSymbol) && (item.status !== 'SL_HIT');
+
+        let cardStyle = isTopPick
+          ? `border:2px solid #ffd700; box-shadow:0 0 18px rgba(255,215,0,0.35); background:linear-gradient(180deg, rgba(255,215,0,0.08) 0%, rgba(20,25,38,0.95) 100%);`
+          : `border:1px solid ${dirColor};`;
+
+        let topPickBannerHtml = isTopPick ? `
+          <div style="background:linear-gradient(90deg, #ffd700, #ffaa00); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(255,215,0,0.4);">
+            🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE ACCURACY (${item.score}/100)
+          </div>
+        ` : '';
         
         let whaleBadge = '';
         if (item.isWhaleAccumulating) {
@@ -5027,6 +5060,7 @@ class ScalperApp {
         const ratioVal = item.orderFlowRatio || 1.0;
 
         const cardInnerHtml = `
+          ${topPickBannerHtml}
           <div class="setup-card-header">
             <div style="display:flex; align-items:center; gap:8px;">
               <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
@@ -5051,7 +5085,9 @@ class ScalperApp {
             <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">$${item.tp2.toFixed(item.decimals)}</b></div>
             <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">$${item.tp3.toFixed(item.decimals)}</b></div>
           </div>
-          <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:linear-gradient(135deg, ${dirColor}, #10141f); border:1px solid ${dirColor}; color:#fff; cursor:pointer;">⚡ View Chart &amp; Signal</button>
+          <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
+            ${isTopPick ? '🚀 EXECUTE #1 PRIME TRADE' : '⚡ View Chart & Signal'}
+          </button>
         `;
 
         if (card) {
