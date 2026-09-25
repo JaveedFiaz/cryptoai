@@ -1747,23 +1747,42 @@ body {
 
   /* Main Workspace */
   .main-workspace {
-    flex-direction: column;
-    height: auto;
-    min-height: calc(100vh - 220px);
-    overflow: visible;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
 
   /* Mobile Tab Visibility Controlled by body class */
   body.mobile-tab-chart .chart-wrapper {
     display: flex !important;
-    height: calc(100vh - 130px) !important;
-    min-height: 520px !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
   body.mobile-tab-chart #tv-chart-viewport,
   body.mobile-tab-chart #tradingview_chart,
   body.mobile-tab-chart #chart-container {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
     height: 100% !important;
-    min-height: 480px !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.mobile-tab-chart #tv-chart-viewport iframe,
+  body.mobile-tab-chart #tradingview_chart iframe {
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1 1 0% !important;
+    border: none !important;
   }
   body.mobile-tab-chart .trading-dock {
     display: none !important;
@@ -2784,31 +2803,47 @@ body {
   }
 
   #tab-terminal.tab-pane.active {
-    height: calc(100vh - 100px) !important;
+    position: fixed !important;
+    top: 42px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 50px !important;
+    height: auto !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
-    padding-bottom: 52px !important;
+    z-index: 50 !important;
+    background: #0b0e14 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .main-workspace {
     height: 100% !important;
     min-height: 0 !important;
     flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
     overflow: hidden !important;
   }
 
   .chart-wrapper {
     height: 100% !important;
-    flex: 1 1 0% !important;
     min-height: 0 !important;
+    flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
   }
 
   #tv-chart-viewport, #tradingview_chart, #chart-container {
     height: 100% !important;
     width: 100% !important;
-    min-height: 380px !important;
+    min-height: 0 !important;
     flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
   }
 
   /* Hide bottom table panel on mobile when in chart view so chart gets max space */
