@@ -2310,7 +2310,44 @@ class ScalperApp {
         if (entryPrice > 0 && curPrice > 0) {
           pnlPct = isBuy ? ((curPrice - entryPrice) / entryPrice) * 100 : ((entryPrice - curPrice) / entryPrice) * 100;
         }
-        advisoryEl.textContent = `🟢 TRADE INTACT • Live PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+
+        const tp1Price = parseFloat(sig.tp1 || sig.takeProfit || 0);
+        const slPrice = parseFloat(sig.sl || sig.stopLoss || 0);
+
+        let entryStatusTag = '🟢 TRADE INTACT';
+        if (curPrice > 0 && entryPrice > 0) {
+          if (isBuy) {
+            if (tp1Price > 0 && curPrice >= tp1Price) {
+              entryStatusTag = '🎯 TP1 HIT • Locked Profit';
+            } else if (curPrice < entryPrice && slPrice > 0) {
+              const slDist = entryPrice - slPrice;
+              const dropDist = entryPrice - curPrice;
+              if (slDist > 0 && (dropDist / slDist) < 0.70) {
+                entryStatusTag = '⚡ DISCOUNT ENTRY (Retest Support)';
+              } else {
+                entryStatusTag = '⚠️ SL NEARBY (High Risk)';
+              }
+            } else if (curPrice > entryPrice) {
+              entryStatusTag = '🟢 IN PROFIT (Moving to TP1)';
+            }
+          } else { // SHORT
+            if (tp1Price > 0 && curPrice <= tp1Price) {
+              entryStatusTag = '🎯 TP1 HIT • Locked Profit';
+            } else if (curPrice > entryPrice && slPrice > 0) {
+              const slDist = slPrice - entryPrice;
+              const riseDist = curPrice - entryPrice;
+              if (slDist > 0 && (riseDist / slDist) < 0.70) {
+                entryStatusTag = '⚡ DISCOUNT ENTRY (Retest Resistance)';
+              } else {
+                entryStatusTag = '⚠️ SL NEARBY (High Risk)';
+              }
+            } else if (curPrice < entryPrice) {
+              entryStatusTag = '🟢 IN PROFIT (Moving to TP1)';
+            }
+          }
+        }
+
+        advisoryEl.textContent = `${entryStatusTag} • Live PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       }
     }
 
@@ -4763,9 +4800,33 @@ class ScalperApp {
           `;
         } else if (item.entry) {
           const livePnl = item.pnlPct !== undefined ? item.pnlPct : 0;
+          const curPrice = item.currentPrice || item.price || item.entry;
+          const isLong = item.dir === 'LONG';
+          let statusTag = '🟢 TRADE INTACT';
+
+          if (curPrice > 0 && item.entry > 0) {
+            if (isLong) {
+              if (item.tp1 && curPrice >= item.tp1) {
+                statusTag = '🎯 TP1 HIT • Locked Profit';
+              } else if (curPrice < item.entry && item.sl) {
+                statusTag = '⚡ DISCOUNT ENTRY (Retest Support)';
+              } else if (curPrice > item.entry) {
+                statusTag = '🟢 IN PROFIT (Moving to TP1)';
+              }
+            } else { // SHORT
+              if (item.tp1 && curPrice <= item.tp1) {
+                statusTag = '🎯 TP1 HIT • Locked Profit';
+              } else if (curPrice > item.entry && item.sl) {
+                statusTag = '⚡ DISCOUNT ENTRY (Retest Resistance)';
+              } else if (curPrice < item.entry) {
+                statusTag = '🟢 IN PROFIT (Moving to TP1)';
+              }
+            }
+          }
+
           exitAdvisoryHtml = `
             <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center;">
-              🟢 TRADE INTACT • Live PnL: ${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%
+              ${statusTag} • Live PnL: ${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%
             </div>
           `;
         }
