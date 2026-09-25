@@ -286,7 +286,11 @@
       // -----------------------------------------------------------------------
       // TOTAL SCORE & CLASSIFICATION
       // -----------------------------------------------------------------------
-      const totalScore = trendScore + structureScore + momentumScore + volumeScore + liquidityScore + mtfScore + entryScore;
+      // The terminal intentionally reserves 100 as an unattainable perfect score.
+      // Keep every published confluence value on the documented 50–99 scale.
+      const totalScore = Math.min(99, Math.max(50, Math.round(
+        trendScore + structureScore + momentumScore + volumeScore + liquidityScore + mtfScore + entryScore
+      )));
 
       let classification = 'NO_TRADE';
       let confidence = 'LOW';
@@ -314,7 +318,7 @@
 
       return {
         score: totalScore,
-        maxScore: 100,
+        maxScore: 99,
         classification,
         confidence,
         isTradeEligible,

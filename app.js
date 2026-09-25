@@ -23,7 +23,9 @@ class ScalperApp {
     this.activeMobileTab = 'chart';
     this.activeView = 'terminal';
     this.autoTradingEnabled = false;
-    this.tradingMode = 'MEXC_REAL'; // Default to MEXC Real Futures Trading Account
+    // Safety first: a fresh browser session must never select real-money execution.
+    // The server remains the only place where live execution can be enabled.
+    this.tradingMode = 'PAPER';
     this.autoTradeMinScore = this.loadAutoTradeScore();
     
     // Specifications
@@ -254,11 +256,9 @@ class ScalperApp {
     this.startCandleTimer();
     this.updateDockTelemetry();
 
-    // Start persistent background auto-scanning loop so setups are ALWAYS loaded & updated automatically without manual refresh
-    this.refreshMemeCoinTracker();
-    if (!this.globalScanInterval) {
-      this.globalScanInterval = setInterval(() => this.refreshMemeCoinTracker(true), 12000);
-    }
+    // Scanner work is scoped to the Meme Coins view. Running it in the background
+    // duplicated the tab interval and kept dozens of network requests active while hidden.
+    if (initialTab === 'memecoins') this.refreshMemeCoinTracker();
 
     if (this.alertService && this.dom.modals && this.dom.modals.alertsBtn) {
       const cfg = this.alertService.config;
@@ -4660,6 +4660,9 @@ class ScalperApp {
   }
 
   async refreshMemeCoinTracker(isAutoScan = false) {
+    // A slow network response must not overlap the next scheduled scan.
+    if (this._memeScanInFlight) return;
+    this._memeScanInFlight = true;
     const container = document.getElementById('memecoin-cards-container');
     const refreshBtn = document.getElementById('memecoin-refresh-btn');
     const statusPill = document.getElementById('memecoin-status');
@@ -4798,7 +4801,13 @@ class ScalperApp {
     if (this.activeMemeCategory === 'highcap') {
       targetSymbols = highCapSymbols;
     } else if (this.activeMemeCategory === 'bigmoves') {
-      targetSymbols = Array.from(new Set([...preBreakoutMovers, ...dynamicTopGainers]));
+      const heavyHighCapCoins = new Set([
+        'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 
+        'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'NEARUSDT', 'DOTUSDT', 
+        'SUIUSDT', 'LTCUSDT', 'UNIUSDT', 'APTUSDT', 'ARBUSDT', 
+        'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT', 'TIAUSDT'
+      ]);
+      targetSymbols = Array.from(new Set([...preBreakoutMovers, ...dynamicTopGainers])).filter(s => !heavyHighCapCoins.has(s));
     }
     const now = Date.now();
 
@@ -5062,14 +5071,25 @@ class ScalperApp {
       }));
 
       // Sort active setups by Creation Time (newest first)
-      const topSetups = results.filter(Boolean).sort((a, b) => (b.time || 0) - (a.time || 0));
+      const sortedSetups = results.filter(Boolean).sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const aOf = a.dir === 'LONG' ? (a.orderFlowBuyPct || 50) : (100 - (a.orderFlowBuyPct || 50));
+        const bOf = b.dir === 'LONG' ? (b.orderFlowBuyPct || 50) : (100 - (b.orderFlowBuyPct || 50));
+        if (bOf !== aOf) return bOf - aOf;
+        return (b.volRatio || 1) - (a.volRatio || 1);
+      });
+      const topSetups = sortedSetups.slice(0, 4);
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
-      if (!container) return;
+      if (!container) {
+        this._memeScanInFlight = false;
+        return;
+      }
 
       if (topSetups.length === 0) {
         const catName = this.activeMemeCategory === 'bigmoves' ? 'Pre-Breakout Big Moves & Day Top Gainers' : (this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins');
         container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new pre-breakout squeeze setups meeting strict criteria at this bar. Scanning automatically...</div>`;
+        this._memeScanInFlight = false;
         return;
       }
 
@@ -5248,29 +5268,38 @@ class ScalperApp {
           </button>
         `;
 
+        const renderKey = `${cardStyle}|${cardInnerHtml}`;
         if (card) {
-          card.setAttribute('style', cardStyle);
-          card.innerHTML = cardInnerHtml;
+          // Avoid replacing a card's subtree when the scanner result is identical.
+          // This preserves paint stability and prevents duplicate click listeners.
+          if (card.dataset.renderKey !== renderKey) {
+            card.setAttribute('style', cardStyle);
+            card.innerHTML = cardInnerHtml;
+            card.dataset.renderKey = renderKey;
+          }
         } else {
           card = document.createElement('div');
           card.setAttribute('data-card-symbol', item.symbol);
           card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
           card.setAttribute('style', cardStyle);
           card.innerHTML = cardInnerHtml;
+          card.dataset.renderKey = renderKey;
           container.appendChild(card);
+          card.querySelector('.trade-meme-btn')?.addEventListener('click', async () => {
+            await this.selectAndOpenTradeChart(card.dataset.cardSymbol, '1m', card._memeSetup);
+          });
         }
 
         delete existingCardsMap[item.symbol];
-
-        card.querySelector('.trade-meme-btn')?.addEventListener('click', async () => {
-          await this.selectAndOpenTradeChart(item.symbol, '1m', item);
-        });
+        card._memeSetup = item;
       });
 
       // Remove cards for expired/closed setups
       Object.values(existingCardsMap).forEach(c => c.remove());
+      this._memeScanInFlight = false;
     } catch (e) {
       if (container) container.innerHTML = `<div class="loading-state-box">Scanner error: ${e.message}</div>`;
+      this._memeScanInFlight = false;
     }
   }
 

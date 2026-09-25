@@ -10,6 +10,14 @@
  * - Market Structure Break (BOS / CHoCH)
  */
 
+const fmtPrice = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return '0.00';
+  const absolute = Math.abs(number);
+  const decimals = absolute < 0.0001 ? 8 : absolute < 0.001 ? 7 : absolute < 0.01 ? 6 : absolute < 1 ? 4 : absolute < 10 ? 3 : 2;
+  return number.toFixed(decimals);
+};
+
 class MarketScanner {
   constructor(options = {}) {
     this.symbols = options.symbols || ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT'];
@@ -26,7 +34,14 @@ class MarketScanner {
   async scanSymbol(symbol) {
     try {
       const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${this.interval}&limit=100`;
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      let res;
+      try {
+        res = await fetch(url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
       if (!res.ok) return null;
       const raw = await res.json();
       if (!Array.isArray(raw) || raw.length < 50) return null;
@@ -47,7 +62,8 @@ class MarketScanner {
       const latest = analysis.latest;
       const structure = latest.marketStructure;
       const sweep = latest.liquiditySweep;
-      const score100 = latest.score100 || 0;
+      // UI confluence is always expressed on the terminal's 50–99 scale.
+      const score100 = Math.min(99, Math.max(50, Math.round(latest.score100 || 50)));
 
       let setupType = null;
       let direction = null;
@@ -126,10 +142,10 @@ class MarketScanner {
         setupType,
         direction,
         currentPrice,
-        entryZone: `$${(currentPrice * 0.999).toFixed(2)} - $${(currentPrice * 1.001).toFixed(2)}`,
-        sl: parseFloat(sl.toFixed(2)),
-        tp1: parseFloat(tp1.toFixed(2)),
-        tp2: parseFloat(tp2.toFixed(2)),
+        entryZone: `$${fmtPrice(currentPrice * 0.999)} - $${fmtPrice(currentPrice * 1.001)}`,
+        sl,
+        tp1,
+        tp2,
         riskReward: `1:${rr}`,
         score100,
         status,

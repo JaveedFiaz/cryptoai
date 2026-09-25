@@ -59,7 +59,8 @@ riskManager.loadState(db);
 
 const executionFilter = new ExecutionFilter(riskManager);
 const orderRouter = new OrderRouter({
-  mode: db.getSettings().autoTradeMode || 'MEXC_REAL',
+  // A restart must not silently restore real-money execution.
+  mode: 'PAPER',
   paperBroker: engine,
   mexcClient,
   mockExchange,
@@ -114,34 +115,45 @@ setTimeout(() => { marketScanner.scanAll().catch(() => {}); }, 3000);
 // BACKEND REAL-TIME MARKET DATA POLLER / INGESTOR
 // Keeps backend trading engine prices updated for major crypto futures pairs
 // =============================================================================
+let marketPollInFlight = false;
 async function pollMarketPrices() {
+  if (marketPollInFlight) return;
+  marketPollInFlight = true;
   try {
-    // Fetch Major Futures (BTC, ETH, SOL, BNB, XRP, DOGE)
+    // A single request is substantially lighter than six serial requests every
+    // second and prevents slow cycles from piling up.
     const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT'];
-    for (const sym of symbols) {
-      try {
-        const futRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${sym}`);
-        if (futRes.ok) {
-          const f = await futRes.json();
-          const last = parseFloat(f.lastPrice);
-          const spread = last * 0.00004;
-          engine.updatePrice(sym, {
-            price: last,
-            bid: last - spread / 2,
-            ask: last + spread / 2,
-            mark: parseFloat(f.lastPrice),
-            high24h: parseFloat(f.highPrice),
-            low24h: parseFloat(f.lowPrice),
-            volume24h: parseFloat(f.volume),
-            change24h: parseFloat(f.priceChangePercent),
-            time: Date.now()
-          });
-          broadcastSSE('market_price_update', engine.prices[sym]);
-        }
-      } catch (err) {}
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    try {
+      const response = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', { signal: controller.signal });
+      if (!response.ok) return;
+      const tickerBySymbol = new Map((await response.json()).map(ticker => [ticker.symbol, ticker]));
+      for (const sym of symbols) {
+        const ticker = tickerBySymbol.get(sym);
+        const last = Number(ticker?.lastPrice);
+        if (!Number.isFinite(last) || last <= 0) continue;
+        const spread = last * 0.00004;
+        engine.updatePrice(sym, {
+          price: last,
+          bid: last - spread / 2,
+          ask: last + spread / 2,
+          mark: last,
+          high24h: Number(ticker.highPrice),
+          low24h: Number(ticker.lowPrice),
+          volume24h: Number(ticker.volume),
+          change24h: Number(ticker.priceChangePercent),
+          time: Date.now()
+        });
+        broadcastSSE('market_price_update', engine.prices[sym]);
+      }
+    } finally {
+      clearTimeout(timeout);
     }
   } catch (err) {
-    // Silent catch on network hiccups
+    // Transient exchange failures must not stop the terminal.
+  } finally {
+    marketPollInFlight = false;
   }
 }
 
@@ -844,4 +856,3 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  Auto-Trading:       OFF (must be enabled per session)`);
   console.log(`====================================================\n`);
 });
-
