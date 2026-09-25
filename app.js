@@ -248,6 +248,12 @@ class ScalperApp {
     this.startCandleTimer();
     this.updateDockTelemetry();
 
+    // Start persistent background auto-scanning loop so setups are ALWAYS loaded & updated automatically without manual refresh
+    this.refreshMemeCoinTracker();
+    if (!this.globalScanInterval) {
+      this.globalScanInterval = setInterval(() => this.refreshMemeCoinTracker(true), 12000);
+    }
+
     if (this.alertService && this.dom.modals && this.dom.modals.alertsBtn) {
       const cfg = this.alertService.config;
       const anyEnabled = !!((cfg.discord && cfg.discord.enabled) || (cfg.ntfy && cfg.ntfy.enabled) || (cfg.telegram && cfg.telegram.enabled) || (cfg.whatsapp && cfg.whatsapp.enabled));
@@ -1439,12 +1445,47 @@ class ScalperApp {
     return map[intv] || '1';
   }
 
+  updateTradingViewChartSymbol(symbol, interval) {
+    const cleanSym = (symbol || this.symbol || 'BTCUSDT').toUpperCase();
+    const tvSym = this.getTradingViewSymbol(cleanSym);
+    const tvInt = this.getTradingViewInterval(interval || this.interval);
+
+    const container = document.getElementById('tradingview_chart');
+    if (!container) return;
+
+    const iframe = container.querySelector('iframe');
+    if (iframe && iframe.contentWindow) {
+      try {
+        // PostMessage to TradingView widget iframe to change symbol in-place without unmounting iframe
+        iframe.contentWindow.postMessage(JSON.stringify({
+          name: 'change-symbol',
+          data: { symbol: tvSym, interval: tvInt }
+        }), '*');
+
+        if (this.tvWidget && typeof this.tvWidget.setSymbol === 'function') {
+          this.tvWidget.setSymbol(tvSym, tvInt);
+        }
+        return;
+      } catch (e) {
+        console.warn('postMessage symbol change error:', e);
+      }
+    }
+
+    this.initTradingViewChart();
+  }
+
   initTradingViewChart() {
     const container = document.getElementById('tradingview_chart');
     if (!container) return;
 
     if (typeof TradingView === 'undefined' || typeof TradingView.widget === 'undefined') {
       setTimeout(() => this.initTradingViewChart(), 350);
+      return;
+    }
+
+    // Preserve existing iframe if mounted to avoid wiping user drawings
+    if (container.querySelector('iframe')) {
+      this.updateTradingViewChartSymbol(this.symbol, this.interval);
       return;
     }
 
@@ -1669,51 +1710,23 @@ class ScalperApp {
   // =========================================================================
   async switchPair(newSymbol) {
     if (!newSymbol) return;
+    const cleanSym = newSymbol.toUpperCase();
     const prevSym = this.symbol;
-    this.symbol = newSymbol;
+    this.symbol = cleanSym;
     try {
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('crypto_scalper_active_symbol', newSymbol);
+        localStorage.setItem('crypto_scalper_active_symbol', cleanSym);
       }
     } catch (e) {}
 
-    // Save previous symbol's TradingView drawings
-    if (this.tvWidget && typeof this.tvWidget.save === 'function' && prevSym) {
-      try {
-        this.tvWidget.save((data) => {
-          if (data) {
-            try { localStorage.setItem(`tv_drawings_${prevSym}`, JSON.stringify(data)); } catch (e) {}
-          }
-        });
-      } catch (e) {}
-    }
+    this.engine.resetState();
 
-    if (this.tvWidget) {
-      const tvSym = this.getTradingViewSymbol(newSymbol);
-      const tvInt = this.getTradingViewInterval(this.interval);
-      if (typeof this.tvWidget.setSymbol === 'function') {
-        try { 
-          this.tvWidget.setSymbol(tvSym, tvInt);
-          // Restore new symbol's TradingView drawings
-          if (typeof this.tvWidget.load === 'function') {
-            setTimeout(() => {
-              try {
-                const savedDrawings = localStorage.getItem(`tv_drawings_${newSymbol}`);
-                if (savedDrawings) {
-                  const parsed = JSON.parse(savedDrawings);
-                  if (parsed) this.tvWidget.load(parsed);
-                }
-              } catch (e) {}
-            }, 350);
-          }
-        } catch (e) { this.initTradingViewChart(); }
-      } else {
-        this.initTradingViewChart();
-      }
-    }
+    // Update TradingView iframe symbol seamlessly (preserves user drawings per pair)
+    this.updateTradingViewChartSymbol(cleanSym, this.interval);
 
     await this.connectMarket(this.symbol, this.interval);
     this.syncPositionChartLines();
+    this.restoreChartDrawings();
     this.updateDockTelemetry();
   }
 
@@ -1732,15 +1745,7 @@ class ScalperApp {
     this.htfInterval = htfMap[newInterval] || '1h';
     this.engine.resetState();
 
-    if (this.tvWidget) {
-      const tvSym = this.getTradingViewSymbol(this.symbol);
-      const tvInt = this.getTradingViewInterval(newInterval);
-      if (typeof this.tvWidget.setSymbol === 'function') {
-        try { this.tvWidget.setSymbol(tvSym, tvInt); } catch (e) { this.initTradingViewChart(); }
-      } else {
-        this.initTradingViewChart();
-      }
-    }
+    this.updateTradingViewChartSymbol(this.symbol, newInterval);
 
     await this.connectMarket(this.symbol, this.interval);
     this.syncPositionChartLines();
@@ -1760,18 +1765,8 @@ class ScalperApp {
       btn.classList.toggle('active', btn.getAttribute('data-pair') === this.symbol);
     });
 
-    // Update TradingView widget if symbol changed
-    if (this.tvWidget) {
-      const tvSym = this.getTradingViewSymbol(this.symbol);
-      const tvInt = this.getTradingViewInterval(this.interval);
-      if (typeof this.tvWidget.setSymbol === 'function') {
-        try { this.tvWidget.setSymbol(tvSym, tvInt); } catch (e) { this.initTradingViewChart(); }
-      } else {
-        this.initTradingViewChart();
-      }
-    } else {
-      this.initTradingViewChart();
-    }
+    // Update TradingView widget symbol seamlessly
+    this.updateTradingViewChartSymbol(this.symbol, this.interval);
 
     // 1. Detach old sockets
     if (this.activeWs) {
