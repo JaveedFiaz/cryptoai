@@ -4648,12 +4648,15 @@ class ScalperApp {
     // Category Pills DOM Binding
     const memeBtn = document.getElementById('cat-btn-memecoins');
     const highCapBtn = document.getElementById('cat-btn-highcap');
+    const bigMovesBtn = document.getElementById('cat-btn-bigmoves');
+
     if (memeBtn && !memeBtn.dataset.bound) {
       memeBtn.dataset.bound = 'true';
       memeBtn.addEventListener('click', () => {
         this.activeMemeCategory = 'memecoins';
         memeBtn.classList.add('active');
         if (highCapBtn) highCapBtn.classList.remove('active');
+        if (bigMovesBtn) bigMovesBtn.classList.remove('active');
         this.refreshMemeCoinTracker();
       });
     }
@@ -4663,20 +4666,35 @@ class ScalperApp {
         this.activeMemeCategory = 'highcap';
         highCapBtn.classList.add('active');
         if (memeBtn) memeBtn.classList.remove('active');
+        if (bigMovesBtn) bigMovesBtn.classList.remove('active');
+        this.refreshMemeCoinTracker();
+      });
+    }
+    if (bigMovesBtn && !bigMovesBtn.dataset.bound) {
+      bigMovesBtn.dataset.bound = 'true';
+      bigMovesBtn.addEventListener('click', () => {
+        this.activeMemeCategory = 'bigmoves';
+        bigMovesBtn.classList.add('active');
+        if (memeBtn) memeBtn.classList.remove('active');
+        if (highCapBtn) highCapBtn.classList.remove('active');
         this.refreshMemeCoinTracker();
       });
     }
 
     if (!this.activeMemeCategory) this.activeMemeCategory = 'memecoins';
 
+    const catTitle = this.activeMemeCategory === 'bigmoves'
+      ? 'PRE-BREAKOUT BIG MOVES'
+      : (this.activeMemeCategory === 'highcap' ? 'HIGH CAP' : 'MEME COINS');
+
     if (statusPill) {
       statusPill.className = 'status-pill online';
-      statusPill.textContent = `⚡ REAL-TIME RADAR ACTIVE (${this.activeMemeCategory === 'highcap' ? 'HIGH CAP' : 'MEME COINS'})`;
+      statusPill.textContent = `⚡ REAL-TIME RADAR ACTIVE (${catTitle})`;
     }
 
     if (refreshBtn) refreshBtn.classList.add('rotating');
     if (container && !isAutoScan && container.children.length === 0) {
-      container.innerHTML = `<div class="loading-state-box">⚡ Active Scanning ${this.activeMemeCategory === 'highcap' ? '20 Top High Market Cap Coins' : '24 Top Meme Coins'} for Orderflow Sweeps & Whale Accumulation...</div>`;
+      container.innerHTML = `<div class="loading-state-box">⚡ Active Scanning ${this.activeMemeCategory === 'bigmoves' ? '44+ Coins for Volatility Squeeze & Pre-Breakout Big Moves' : (this.activeMemeCategory === 'highcap' ? '20 Top High Market Cap Coins' : '24 Top Meme Coins')}...</div>`;
     }
 
     this.memeSignalsCache = this.loadMemeCache();
@@ -4696,7 +4714,12 @@ class ScalperApp {
       'ARBUSDT', 'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT'
     ];
 
-    const targetSymbols = (this.activeMemeCategory === 'highcap') ? highCapSymbols : memeSymbols;
+    let targetSymbols = memeSymbols;
+    if (this.activeMemeCategory === 'highcap') {
+      targetSymbols = highCapSymbols;
+    } else if (this.activeMemeCategory === 'bigmoves') {
+      targetSymbols = Array.from(new Set([...memeSymbols, ...highCapSymbols]));
+    }
     const now = Date.now();
 
     // 0. Check Overall Bitcoin Market Regime
@@ -4889,11 +4912,15 @@ class ScalperApp {
             score = Math.round((score + (engineSig.score100 || 82)) / 2);
           }
 
-          if (score > 96) score = 96;
-          if (score < 80) return null; // 80+ Score Threshold for Grade A / A+ signals
+          // Pre-Breakout Big Move Expansion Calculations
+          const isPreBreakoutBigMove = isBigMoveBrewing || (squeezeRatio < 0.85 && (orderFlowBuyPct >= 56 || orderFlowBuyPct <= 44 || volRatio >= 1.15));
+          if (this.activeMemeCategory === 'bigmoves' && !isPreBreakoutBigMove) {
+            return null; // In Big Moves tab, filter strictly for coiled setups before breakout
+          }
 
-          const winProb = Math.min(88, Math.max(76, Math.round(score * 0.90)));
-          const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : (entry < 10 ? 3 : 2)));
+          const projectedMoveMin = Math.max(2.5, Math.min(8.0, (atr / confirmedBar.close * 100 * 2.5))).toFixed(1);
+          const projectedMoveMax = Math.max(4.5, Math.min(14.0, (atr / confirmedBar.close * 100 * 5.0))).toFixed(1);
+          const projectedMove = `Target +${projectedMoveMin}% to +${projectedMoveMax}%`;
 
           const sigObj = {
             symbol,
@@ -4914,6 +4941,8 @@ class ScalperApp {
             isBigMoveBrewing,
             isWhaleAccumulating,
             isWhaleDistributing,
+            isPreBreakoutBigMove,
+            projectedMove,
             category: this.activeMemeCategory,
             time: now
           };
@@ -4936,8 +4965,8 @@ class ScalperApp {
       if (!container) return;
 
       if (topSetups.length === 0) {
-        const catName = this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins';
-        container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new breakout setups meeting strict criteria at this exact bar. Scanning automatically...</div>`;
+        const catName = this.activeMemeCategory === 'bigmoves' ? 'Pre-Breakout Big Moves (Coiled Pairs)' : (this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins');
+        container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new pre-breakout squeeze setups meeting strict criteria at this bar. Scanning automatically...</div>`;
         return;
       }
 
@@ -4983,11 +5012,20 @@ class ScalperApp {
           ? `border:2px solid #ffd700; box-shadow:0 0 18px rgba(255,215,0,0.35); background:linear-gradient(180deg, rgba(255,215,0,0.08) 0%, rgba(20,25,38,0.95) 100%);`
           : `border:1px solid ${dirColor};`;
 
-        let topPickBannerHtml = isTopPick ? `
-          <div style="background:linear-gradient(90deg, #ffd700, #ffaa00); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(255,215,0,0.4);">
-            🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE ACCURACY (${item.score}/100)
-          </div>
-        ` : '';
+        let topPickBannerHtml = '';
+        if (isTopPick) {
+          topPickBannerHtml = `
+            <div style="background:linear-gradient(90deg, #ffd700, #ffaa00); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(255,215,0,0.4);">
+              🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE ACCURACY (${item.score}/100)
+            </div>
+          `;
+        } else if (item.isPreBreakoutBigMove) {
+          topPickBannerHtml = `
+            <div style="background:linear-gradient(90deg, #00f2fe, #4facfe); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,242,254,0.35);">
+              🚀 PRE-BREAKOUT SQUEEZE • COILED FOR BIG MOVE (${item.projectedMove || 'Target +3.5% - +8.0%'})
+            </div>
+          `;
+        }
         
         let whaleBadge = '';
         if (item.isWhaleAccumulating) {
