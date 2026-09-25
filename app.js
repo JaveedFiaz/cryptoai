@@ -521,6 +521,15 @@ class ScalperApp {
       });
     }
 
+    // Floating Risk/Reward Box Close Button
+    const rrCloseBtn = document.getElementById('rr-box-close-btn');
+    if (rrCloseBtn) {
+      rrCloseBtn.addEventListener('click', () => {
+        const box = document.getElementById('risk-reward-overlay-box');
+        if (box) box.style.display = 'none';
+      });
+    }
+
     // Header Live Sync Button
     const syncBtn = this.dom.headerSyncBtn || document.getElementById('header-sync-btn') || document.getElementById('header-reset-btn');
     if (syncBtn) {
@@ -1637,14 +1646,14 @@ class ScalperApp {
   }
 
   clearSignalPriceLines() {
-    if (!this.candleSeries || !this.signalPriceLines) {
-      this.signalPriceLines = [];
-      return;
-    }
-    for (const pl of this.signalPriceLines) {
-      try { this.candleSeries.removePriceLine(pl); } catch (e) {}
+    if (this.candleSeries && this.signalPriceLines) {
+      for (const pl of this.signalPriceLines) {
+        try { this.candleSeries.removePriceLine(pl); } catch (e) {}
+      }
     }
     this.signalPriceLines = [];
+    const box = document.getElementById('risk-reward-overlay-box');
+    if (box) box.style.display = 'none';
   }
 
   // =========================================================================
@@ -2253,8 +2262,90 @@ class ScalperApp {
     });
   }
 
+  updateRiskRewardOverlayBox(sig) {
+    const box = document.getElementById('risk-reward-overlay-box');
+    if (!box) return;
+
+    if (!sig) {
+      box.style.display = 'none';
+      return;
+    }
+
+    const isBuy = (sig.dir === 'LONG' || sig.direction === 'LONG' || sig.type === 'BUY');
+    const sym = (sig.symbol || this.symbol || 'BTCUSDT').toUpperCase();
+    const decimals = sig.decimals || this.getPriceDecimals(sym);
+
+    const badge = document.getElementById('rr-box-badge');
+    if (badge) {
+      badge.className = `rr-box-badge ${isBuy ? 'long' : 'short'}`;
+      badge.textContent = isBuy ? '🟢 BUY LONG' : '🔴 SELL SHORT';
+    }
+
+    const symbolEl = document.getElementById('rr-box-symbol');
+    if (symbolEl) symbolEl.textContent = sym;
+
+    const tfEl = document.getElementById('rr-box-timeframe');
+    if (tfEl) tfEl.textContent = `[${sig.timeframe || sig.interval || this.interval || '5m'}]`;
+
+    const scoreEl = document.getElementById('rr-box-score');
+    if (scoreEl) {
+      const scoreVal = sig.score100 || (sig.score ? (sig.score <= 10 ? Math.round((sig.score / 8) * 100) : sig.score) : 85);
+      scoreEl.textContent = `Score: ${scoreVal}/100`;
+    }
+
+    const entryPrice = parseFloat(sig.entry || sig.price || sig.entryPrice || 0);
+    const entryEl = document.getElementById('rr-box-entry');
+    if (entryEl) entryEl.textContent = entryPrice > 0 ? `$${entryPrice.toFixed(decimals)}` : '---';
+
+    const tp1Price = parseFloat(sig.tp1 || sig.takeProfit || 0);
+    const tp2Price = parseFloat(sig.tp2 || 0);
+    const tp3Price = parseFloat(sig.tp3 || 0);
+    const slPrice = parseFloat(sig.sl || sig.stopLoss || 0);
+
+    const tp1El = document.getElementById('rr-box-tp1');
+    if (tp1El) tp1El.textContent = tp1Price > 0 ? `$${tp1Price.toFixed(decimals)}` : '---';
+
+    const tp2El = document.getElementById('rr-box-tp2');
+    if (tp2El) tp2El.textContent = tp2Price > 0 ? `$${tp2Price.toFixed(decimals)}` : '---';
+
+    const tp3El = document.getElementById('rr-box-tp3');
+    if (tp3El) tp3El.textContent = tp3Price > 0 ? `$${tp3Price.toFixed(decimals)}` : '---';
+
+    const slEl = document.getElementById('rr-box-sl');
+    if (slEl) slEl.textContent = slPrice > 0 ? `$${slPrice.toFixed(decimals)}` : '---';
+
+    const riskPctEl = document.getElementById('rr-box-risk');
+    if (riskPctEl) {
+      if (entryPrice > 0 && slPrice > 0) {
+        const riskPct = (Math.abs(entryPrice - slPrice) / entryPrice) * 100;
+        riskPctEl.textContent = `-${riskPct.toFixed(2)}%`;
+      } else {
+        riskPctEl.textContent = '---';
+      }
+    }
+
+    const rrEl = document.getElementById('rr-box-rr');
+    if (rrEl) {
+      if (entryPrice > 0 && slPrice > 0 && tp1Price > 0) {
+        const rewardDist = Math.abs(tp1Price - entryPrice);
+        const riskDist = Math.abs(entryPrice - slPrice);
+        const ratio = riskDist > 0 ? (rewardDist / riskDist).toFixed(1) : '2.0';
+        rrEl.textContent = `1:${ratio}`;
+      } else {
+        rrEl.textContent = '1:2.0';
+      }
+    }
+
+    box.style.display = 'block';
+  }
+
   renderTradingViewRiskRewardBox(sig) {
-    if (!this.candleSeries || !sig) return;
+    if (!sig) return;
+
+    // Always populate floating TradingView Risk/Reward Overlay Box
+    this.updateRiskRewardOverlayBox(sig);
+
+    if (!this.candleSeries) return;
 
     if (this.signalPriceLines) {
       this.signalPriceLines.forEach(l => {
@@ -4478,6 +4569,7 @@ class ScalperApp {
           const isBearish = volRatio >= 1.25 && changePct < -0.15;
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
+          if (dir === 'NEUTRAL') return null;
           const entry = confirmedBar.close;
           const sl = (dir === 'SHORT') ? entry + (atr * 1.5) : entry - (atr * 1.5);
           const risk = Math.abs(entry - sl);

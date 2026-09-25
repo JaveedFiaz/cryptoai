@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crypto Scalper Pro [v7] - MEXC Real-Time Trading Terminal</title>
-  <link rel="stylesheet" href="styles.css?v=9.5.0">
+  <link rel="stylesheet" href="styles.css?v=9.6.0">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -192,6 +192,42 @@
           <button id="btn-toggle-hud" class="chart-ctrl-btn" title="Show / Hide Crypto Scalper HUD Banner">👁 HUD</button>
           <button id="chart-fullscreen-btn" class="chart-ctrl-btn" title="Toggle Fullscreen Chart">⛶ Fullscreen</button>
           <button id="chart-reset-btn" class="chart-ctrl-btn" title="Auto-scale Chart">🎯 Auto</button>
+        <!-- Floating TradingView Risk / Reward Position Box Overlay -->
+        <div id="risk-reward-overlay-box" class="risk-reward-overlay-box" style="display:none;">
+          <div class="rr-box-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="rr-box-badge" class="rr-box-badge long">🟢 BUY LONG</span>
+              <strong id="rr-box-symbol" class="rr-box-symbol">BTCUSDT</strong>
+              <span id="rr-box-timeframe" class="rr-box-tf">[1m]</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="rr-box-score" class="rr-box-score">Score: 88/100</span>
+              <button id="rr-box-close-btn" class="rr-box-close-btn" title="Close Overlay">&times;</button>
+            </div>
+          </div>
+
+          <div class="rr-box-body">
+            <div class="rr-level-row entry">
+              <span class="rr-label">ENTRY PRICE:</span>
+              <span id="rr-box-entry" class="rr-val entry">$0.002450</span>
+            </div>
+            <div class="rr-zone green-zone">
+              <div class="rr-zone-header">🎯 TAKE PROFIT TARGETS (PROFIT ZONE)</div>
+              <div class="rr-level-grid">
+                <div><span>TP1:</span> <b id="rr-box-tp1">$0.002600</b></div>
+                <div><span>TP2:</span> <b id="rr-box-tp2">$0.002750</b></div>
+                <div><span>TP3:</span> <b id="rr-box-tp3">$0.003000</b></div>
+              </div>
+            </div>
+            <div class="rr-zone red-zone">
+              <div class="rr-zone-header">🛑 STOP LOSS (RISK PROTECTION ZONE)</div>
+              <div class="rr-level-grid">
+                <div><span>SL:</span> <b id="rr-box-sl">$0.002300</b></div>
+                <div><span>RISK:</span> <b id="rr-box-risk">-6.12%</b></div>
+                <div><span>R:R:</span> <b id="rr-box-rr">1:2.0</b></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Official TradingView Advanced Real-Time Chart Viewport -->
@@ -1003,15 +1039,15 @@
   </div>
 
   <!-- Scripts -->
-  <script src="signals/marketStructure.js?v=9.5.0"></script>
-  <script src="signals/liquidityEngine.js?v=9.5.0"></script>
-  <script src="signals/mtfEngine.js?v=9.5.0"></script>
-  <script src="signals/scoringEngine.js?v=9.5.0"></script>
-  <script src="models.js?v=9.5.0"></script>
-  <script src="clientTradingEngine.js?v=9.5.0"></script>
-  <script src="alertService.js?v=9.5.0"></script>
-  <script src="engine.js?v=9.5.0"></script>
-  <script src="app.js?v=9.5.0"></script>
+  <script src="signals/marketStructure.js?v=9.6.0"></script>
+  <script src="signals/liquidityEngine.js?v=9.6.0"></script>
+  <script src="signals/mtfEngine.js?v=9.6.0"></script>
+  <script src="signals/scoringEngine.js?v=9.6.0"></script>
+  <script src="models.js?v=9.6.0"></script>
+  <script src="clientTradingEngine.js?v=9.6.0"></script>
+  <script src="alertService.js?v=9.6.0"></script>
+  <script src="engine.js?v=9.6.0"></script>
+  <script src="app.js?v=9.6.0"></script>
 
 
 
