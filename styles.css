@@ -2838,6 +2838,18 @@ body {
     z-index: 2000 !important;
   }
 
+.tab-pane.hidden-workspace-tab {
+  position: absolute !important;
+  left: -99999px !important;
+  top: -99999px !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  display: flex !important;
+}
+
 /* ==========================================================================
    FLOATING TRADINGVIEW RISK / REWARD POSITION OVERLAY BOX
    ========================================================================== */

@@ -1469,7 +1469,10 @@ class ScalperApp {
         hide_side_toolbar: false,
         withdateranges: true,
         save_image: true,
+        save_chart_properties_to_local_storage: true,
+        auto_save_delay: 2,
         studies: [],
+        enabled_features: ['use_localstorage_for_settings', 'side_toolbar_in_fullscreen_mode'],
         disabled_features: ['create_volume_indicator_by_default', 'volume_force_overlay'],
         overrides: {
           'paneProperties.background': '#0b0e14',
@@ -4503,7 +4506,12 @@ class ScalperApp {
       if (!el) return;
       const isActive = (tabId === id);
       el.classList.toggle('active', isActive);
-      el.style.display = isActive ? 'flex' : 'none';
+      if (id === 'terminal') {
+        el.classList.toggle('hidden-workspace-tab', !isActive);
+        el.style.display = 'flex';
+      } else {
+        el.style.display = isActive ? 'flex' : 'none';
+      }
     });
 
     if (tabId === 'terminal') {
@@ -4572,10 +4580,15 @@ class ScalperApp {
           }
           const atr = sumRange / 15;
 
-          // Check if locked signal is still active within 25 minute window
+          // Check if locked signal is still active within 4-hour trade window and hasn't completed
           const cached = this.memeSignalsCache[symbol];
-          if (cached && (now - cached.time) < 1500000) {
-            return cached;
+          if (cached) {
+            const curClose = candles[candles.length - 1].close;
+            const isTp3Hit = (cached.dir === 'LONG') ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
+            const isSlHit = (cached.dir === 'LONG') ? (curClose <= cached.sl) : (curClose >= cached.sl);
+            if ((now - cached.time) < 14400000 && !isTp3Hit && !isSlHit) {
+              return cached;
+            }
           }
 
           // Strict breakout verification (requires volume surge or price momentum)
