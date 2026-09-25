@@ -4607,9 +4607,9 @@ class ScalperApp {
             const cleaned = {};
             for (const sym in parsed) {
               const item = parsed[sym];
-              // Auto-purge old saturated 98/100 cards, SL_HIT, or invalidated trades!
+              // Auto-purge old saturated cards, SL_HIT, or invalidated trades!
               if (item && (now - (item.time || 0)) < 14400000) {
-                if (item.score < 98 && item.status !== 'SL_HIT' && !item.shouldExit) {
+                if (item.status !== 'SL_HIT' && !item.shouldExit) {
                   cleaned[sym] = item;
                 }
               }
@@ -4857,34 +4857,34 @@ class ScalperApp {
           const squeezeRatio = (atr / confirmedBar.close) * 100;
 
           // Pre-Breakout Alert: Volatility Squeeze + Orderflow Imbalance
-          const isBigMoveBrewing = (squeezeRatio < 0.65) && (volRatio >= 1.35);
-          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 60);
-          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 40);
+          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 58 || orderFlowBuyPct <= 42 || volRatio >= 1.15);
+          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 58);
+          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 42);
 
           // 3. OVER-EXTENSION GUARD
-          if (Math.abs(totalMovePct) > 1.8 || Math.abs(singleBarMovePct) > 1.35) {
+          if (Math.abs(totalMovePct) > 2.5 || Math.abs(singleBarMovePct) > 1.8) {
             return null;
           }
 
           // 4. Directional Breakout Verification with Orderflow & BTC Trend Alignment
-          const isBullish = volRatio >= 1.25 && totalMovePct > 0.08 && totalMovePct <= 1.8 && (btcTrend !== 'BEARISH') && (orderFlowBuyPct >= 48);
-          const isBearish = volRatio >= 1.25 && totalMovePct < -0.08 && totalMovePct >= -1.8 && (btcTrend !== 'BULLISH') && (orderFlowBuyPct <= 52);
+          const isBullish = (volRatio >= 0.95) && (totalMovePct >= 0.04) && (totalMovePct <= 2.2) && (orderFlowBuyPct >= 47) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 58);
+          const isBearish = (volRatio >= 0.95) && (totalMovePct <= -0.04) && (totalMovePct >= -2.2) && (orderFlowBuyPct <= 53) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 42);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
 
-          // 5. STRICT 5-PILLAR CONFLUENCE FILTERING
+          // 5. 5-PILLAR CONFLUENCE FILTERING
           const isEmaAligned = isBullish 
-            ? (ema20 && ema50 && confirmedBar.close > ema20 && ema20 > ema50)
-            : (ema20 && ema50 && confirmedBar.close < ema20 && ema20 < ema50);
+            ? (ema20 && ema50 && confirmedBar.close > ema20)
+            : (ema20 && ema50 && confirmedBar.close < ema20);
 
-          if (!isEmaAligned) return null; // REJECT counter-trend fakeouts!
+          if (!isEmaAligned) return null; // Reject counter-trend fakeouts
 
-          if (isBullish && rsi > 68) return null; // Overbought guard
-          if (isBearish && rsi < 32) return null; // Oversold guard
+          if (isBullish && rsi > 72) return null; // Overbought guard
+          if (isBearish && rsi < 28) return null; // Oversold guard
 
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
-          if (bodyRatio < 0.50) return null; // Reject weak wick traps!
+          if (bodyRatio < 0.38) return null; // Reject thin doji traps
 
           // 6. Entry & ATR SL Buffer (1.5x ATR)
           const entry = (dir === 'LONG') 
@@ -4900,25 +4900,24 @@ class ScalperApp {
           // 7. LATE ENTRY GUARD
           const distToTp1 = Math.abs(latestBar.close - tp1);
           const distToEntry = Math.abs(latestBar.close - entry);
-          if (distToTp1 < distToEntry) {
-            return null; // Reject late entries!
+          if (distToTp1 < (distToEntry * 0.8)) {
+            return null; // Reject late entries
           }
 
           // 8. DYNAMIC 100-POINT CONFLUENCE SCORE
-          let score = 45; // Base score
-          if (volRatio >= 3.0) score += 16;
-          else if (volRatio >= 2.0) score += 12;
-          else if (volRatio >= 1.5) score += 8;
-          else score += 4;
+          let score = 50; // Base score
+          if (volRatio >= 2.5) score += 15;
+          else if (volRatio >= 1.5) score += 10;
+          else if (volRatio >= 1.0) score += 5;
 
           if (isEmaAligned) score += 15;
-          if ((isBullish && rsi >= 48 && rsi <= 62) || (isBearish && rsi >= 38 && rsi <= 52)) score += 10;
-          if (bodyRatio >= 0.60) score += 10;
-          if (isBigMoveBrewing) score += 8;
+          if ((isBullish && rsi >= 45 && rsi <= 65) || (isBearish && rsi >= 35 && rsi <= 55)) score += 10;
+          if (bodyRatio >= 0.55) score += 10;
+          if (isBigMoveBrewing) score += 10;
 
           // Orderflow score boost
-          if (isBullish && orderFlowBuyPct >= 60) score += 10;
-          if (isBearish && orderFlowBuyPct <= 40) score += 10;
+          if (isBullish && orderFlowBuyPct >= 58) score += 12;
+          if (isBearish && orderFlowBuyPct <= 42) score += 12;
 
           // Blend with ScalperEngine score if available
           if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL')) {
@@ -4926,7 +4925,7 @@ class ScalperApp {
           }
 
           if (score > 94) score = 94;
-          if (score < 80) return null; // STRICT 80+ THRESHOLD: Suppress all fakeouts!
+          if (score < 75) return null; // 75+ Score Threshold for reliable breakout detection
 
           const winProb = Math.min(84, Math.max(70, Math.round(score * 0.86)));
           const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : (entry < 10 ? 3 : 2)));
