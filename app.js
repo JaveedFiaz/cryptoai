@@ -1669,6 +1669,7 @@ class ScalperApp {
   // =========================================================================
   async switchPair(newSymbol) {
     if (!newSymbol) return;
+    const prevSym = this.symbol;
     this.symbol = newSymbol;
     try {
       if (typeof localStorage !== 'undefined') {
@@ -1676,47 +1677,36 @@ class ScalperApp {
       }
     } catch (e) {}
 
-    this.engine.resetState();
-    this.activeSignal = null;
-    this.clearSignalPriceLines();
-    this.clearPositionPriceLines();
-
-    // Update active UI pill or custom pair input
-    let matchedPill = false;
-    document.querySelectorAll('.pair-pill').forEach(btn => {
-      const isMatch = (btn.getAttribute('data-pair') === newSymbol);
-      btn.classList.toggle('active', isMatch);
-      if (isMatch) matchedPill = true;
-    });
-
-    const customInput = document.getElementById('custom-pair-input');
-    if (customInput) {
-      customInput.value = matchedPill ? '' : newSymbol.replace('USDT', '');
+    // Save previous symbol's TradingView drawings
+    if (this.tvWidget && typeof this.tvWidget.save === 'function' && prevSym) {
+      try {
+        this.tvWidget.save((data) => {
+          if (data) {
+            try { localStorage.setItem(`tv_drawings_${prevSym}`, JSON.stringify(data)); } catch (e) {}
+          }
+        });
+      } catch (e) {}
     }
-
-    // Update dock unit badge
-    const spec = this.getInstrumentSpec(newSymbol);
-    if (this.dom.dock.unitBadge) {
-      this.dom.dock.unitBadge.textContent = newSymbol.replace('USDT', '');
-    }
-    if (this.dom.dock.qtyLabel) {
-      this.dom.dock.qtyLabel.textContent = 'Coins';
-    }
-
-    // Adjust default leverage if needed
-    if (spec && this.currentLeverage > spec.maxLeverage) {
-      this.currentLeverage = spec.defaultLeverage;
-      this.dom.dock.leverageBtn.textContent = `${this.currentLeverage}x ▾`;
-    }
-
-    this.updateStatus(`SWITCHING TO ${newSymbol}...`, false);
-    this.resetHeroBanner();
 
     if (this.tvWidget) {
       const tvSym = this.getTradingViewSymbol(newSymbol);
       const tvInt = this.getTradingViewInterval(this.interval);
       if (typeof this.tvWidget.setSymbol === 'function') {
-        try { this.tvWidget.setSymbol(tvSym, tvInt); } catch (e) { this.initTradingViewChart(); }
+        try { 
+          this.tvWidget.setSymbol(tvSym, tvInt);
+          // Restore new symbol's TradingView drawings
+          if (typeof this.tvWidget.load === 'function') {
+            setTimeout(() => {
+              try {
+                const savedDrawings = localStorage.getItem(`tv_drawings_${newSymbol}`);
+                if (savedDrawings) {
+                  const parsed = JSON.parse(savedDrawings);
+                  if (parsed) this.tvWidget.load(parsed);
+                }
+              } catch (e) {}
+            }, 350);
+          }
+        } catch (e) { this.initTradingViewChart(); }
       } else {
         this.initTradingViewChart();
       }
@@ -4602,13 +4592,20 @@ class ScalperApp {
             }
           }
 
-          // 2. Early Breakout & Momentum Calculations
+          // 2. Early Breakout, Momentum & Volatility Squeeze Calculations
           const refBar = candles[candles.length - 6];
           const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
           const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
 
+          let sumRange = 0;
+          for (let i = candles.length - 17; i < candles.length - 2; i++) {
+            sumRange += (candles[i].high - candles[i].low);
+          }
+          const atr = sumRange / 15;
+          const squeezeRatio = (atr / confirmedBar.close) * 100;
+          const isBigMoveBrewing = (squeezeRatio < 0.65) && (volRatio >= 1.35);
+
           // 3. OVER-EXTENSION GUARD: Reject signals if price has ALREADY moved > 1.8% in last 5 bars or > 1.35% in 1 bar!
-          // This prevents triggering signals at the peak/bottom of an already extended pump or dump.
           if (Math.abs(totalMovePct) > 1.8 || Math.abs(singleBarMovePct) > 1.35) {
             return null;
           }
@@ -4625,12 +4622,6 @@ class ScalperApp {
             ? Math.min(confirmedBar.close, confirmedBar.open + (confirmedBar.high - confirmedBar.open) * 0.35)
             : Math.max(confirmedBar.close, confirmedBar.open - (confirmedBar.open - confirmedBar.low) * 0.35);
 
-          let sumRange = 0;
-          for (let i = candles.length - 17; i < candles.length - 2; i++) {
-            sumRange += (candles[i].high - candles[i].low);
-          }
-          const atr = sumRange / 15;
-
           const sl = (dir === 'SHORT') ? entry + (atr * 1.3) : entry - (atr * 1.3);
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
@@ -4644,7 +4635,7 @@ class ScalperApp {
             return null; // Reject late entries!
           }
 
-          let score = 78 + Math.min(18, Math.floor(volRatio * 5));
+          let score = isBigMoveBrewing ? (88 + Math.min(10, Math.floor(volRatio * 4))) : (78 + Math.min(18, Math.floor(volRatio * 5)));
           if (score > 98) score = 98;
 
           const winProb = Math.min(96, Math.max(82, Math.floor(score * 0.94)));
@@ -4664,6 +4655,7 @@ class ScalperApp {
             score,
             winProb,
             decimals,
+            isBigMoveBrewing,
             time: now
           };
 
@@ -4693,9 +4685,11 @@ class ScalperApp {
         const card = document.createElement('div');
         card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
-        const whaleBadge = item.volRatio >= 2.0 
-          ? `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 WHALE SPIKE ${item.volRatio.toFixed(1)}x</span>`
-          : `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`;
+        const whaleBadge = item.isBigMoveBrewing
+          ? `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${item.volRatio.toFixed(1)}x</span>`
+          : (item.volRatio >= 2.0 
+              ? `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 WHALE SPIKE ${item.volRatio.toFixed(1)}x</span>`
+              : `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`);
 
         card.innerHTML = `
           <div class="setup-card-header">
