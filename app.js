@@ -4753,65 +4753,45 @@ class ScalperApp {
           // 1. Check active trade signal in cache
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
-            if (cached.score >= 98 || cached.status === 'SL_HIT' || cached.shouldExit) {
+            const curClose = latestBar.close;
+            const isLong = cached.dir === 'LONG';
+            const isTp3Hit = isLong ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
+            const isTp2Hit = isLong ? (curClose >= cached.tp2) : (curClose <= cached.tp2);
+            const isTp1Hit = isLong ? (curClose >= cached.tp1) : (curClose <= cached.tp1);
+            const isSlHit = isLong ? (curClose <= cached.sl) : (curClose >= cached.sl);
+
+            const pnlPct = isLong 
+              ? ((curClose - cached.entry) / cached.entry) * 100
+              : ((cached.entry - curClose) / cached.entry) * 100;
+
+            cached.currentPrice = curClose;
+            cached.pnlPct = pnlPct;
+            cached.orderFlowBuyPct = orderFlowBuyPct;
+            cached.orderFlowRatio = orderFlowRatio;
+
+            if (isSlHit) {
+              cached.status = 'SL_HIT';
+              cached.shouldExit = true;
+              cached.exitReason = 'STOP LOSS HIT';
+            } else if (isTp3Hit) {
+              cached.status = 'TP3_HIT';
+              cached.shouldExit = false;
+              cached.exitReason = 'ALL TARGETS HIT';
+            } else if (isTp2Hit) {
+              cached.status = 'TP2_HIT';
+            } else if (isTp1Hit) {
+              cached.status = 'TP1_HIT';
+            }
+
+            // Auto-purge old setup cards after 4 hours or if SL was hit over 15 mins ago
+            if ((now - (cached.time || 0)) > 14400000) {
               delete this.memeSignalsCache[symbol];
               this.saveMemeCache();
-            } else {
-              const curClose = latestBar.close;
-              const isLong = cached.dir === 'LONG';
-              const isTp3Hit = isLong ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
-              const isTp2Hit = isLong ? (curClose >= cached.tp2) : (curClose <= cached.tp2);
-              const isTp1Hit = isLong ? (curClose >= cached.tp1) : (curClose <= cached.tp1);
-              const isSlHit = isLong ? (curClose <= cached.sl) : (curClose >= cached.sl);
-
-              const pnlPct = isLong 
-                ? ((curClose - cached.entry) / cached.entry) * 100
-                : ((cached.entry - curClose) / cached.entry) * 100;
-
-              cached.currentPrice = curClose;
-              cached.pnlPct = pnlPct;
-              cached.orderFlowBuyPct = orderFlowBuyPct;
-              cached.orderFlowRatio = orderFlowRatio;
-
-              if ((now - cached.time) > 14400000 || isSlHit) {
-                delete this.memeSignalsCache[symbol];
-                this.saveMemeCache();
-              } else {
-                if (isTp3Hit) {
-                  cached.status = 'TP3_HIT';
-                  cached.shouldExit = false;
-                  cached.exitReason = 'ALL TARGETS HIT';
-                  this.saveMemeCache();
-                  return cached;
-                } else if (isTp2Hit) {
-                  cached.status = 'TP2_HIT';
-                  this.saveMemeCache();
-                  return cached;
-                } else if (isTp1Hit) {
-                  cached.status = 'TP1_HIT';
-                  this.saveMemeCache();
-                  return cached;
-                }
-
-                // Dynamic invalidation checks
-                const isOppositeSurge = isLong
-                  ? (totalMovePct < -0.1 && volRatio >= 1.40)
-                  : (totalMovePct > 0.1 && volRatio >= 1.40);
-
-                const slDist = Math.abs(cached.entry - cached.sl);
-                const distToSl = isLong ? (cached.entry - curClose) : (curClose - cached.entry);
-                const isStructureBroken = slDist > 0 && (distToSl / slDist) >= 0.70;
-
-                if (isOppositeSurge || isStructureBroken) {
-                  delete this.memeSignalsCache[symbol];
-                  this.saveMemeCache();
-                  return null;
-                }
-
-                this.saveMemeCache();
-                return cached;
-              }
+              return null;
             }
+
+            this.saveMemeCache();
+            return cached;
           }
 
           // 2. Full 8-Factor ScalperEngine & Technical Calculations
@@ -4938,24 +4918,32 @@ class ScalperApp {
         }
       }));
 
-      // Render ALL active setups sorted by score
-      const topSetups = results.filter(Boolean).sort((a, b) => b.score - a.score);
+      // Sort active setups by Creation Time (newest first) to guarantee ZERO card position jumping
+      const topSetups = results.filter(Boolean).sort((a, b) => (b.time || 0) - (a.time || 0));
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) return;
 
       if (topSetups.length === 0) {
         const catName = this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins';
-        container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new breakout setups meeting strict 80+ score criteria at this exact bar. Scanning automatically every 15s...</div>`;
+        container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new breakout setups meeting strict criteria at this exact bar. Scanning automatically...</div>`;
         return;
       }
 
-      container.innerHTML = '';
+      // Map existing card DOM nodes to update in-place smoothly
+      const existingCardsMap = {};
+      container.querySelectorAll('.setup-card').forEach(c => {
+        const sym = c.getAttribute('data-card-symbol');
+        if (sym) existingCardsMap[sym] = c;
+      });
+
+      const loader = container.querySelector('.loading-state-box');
+      if (loader) loader.remove();
+
       topSetups.forEach(item => {
-        const card = document.createElement('div');
+        let card = existingCardsMap[item.symbol];
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
         let cardStyle = `border:1px solid ${dirColor};`;
-        card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
         
         let whaleBadge = '';
         if (item.isWhaleAccumulating) {
@@ -4967,9 +4955,9 @@ class ScalperApp {
         } else if ((item.orderFlowRatio || 1) <= 0.55) {
           whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800;">🩸 INST. SELL DUMP (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Taker)</span>`;
         } else if (item.isBigMoveBrewing) {
-          whaleBadge = `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${item.volRatio.toFixed(1)}x</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${(item.volRatio || 1).toFixed(1)}x</span>`;
         } else {
-          whaleBadge = `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${(item.volRatio || 1).toFixed(1)}x</span>`;
         }
 
         let exitAdvisoryHtml = '';
@@ -5027,8 +5015,7 @@ class ScalperApp {
         const buyPctVal = item.orderFlowBuyPct || 50;
         const ratioVal = item.orderFlowRatio || 1.0;
 
-        card.setAttribute('style', cardStyle);
-        card.innerHTML = `
+        const cardInnerHtml = `
           <div class="setup-card-header">
             <div style="display:flex; align-items:center; gap:8px;">
               <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
@@ -5056,12 +5043,27 @@ class ScalperApp {
           <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:linear-gradient(135deg, ${dirColor}, #10141f); border:1px solid ${dirColor}; color:#fff; cursor:pointer;">⚡ View Chart &amp; Signal</button>
         `;
 
+        if (card) {
+          card.setAttribute('style', cardStyle);
+          card.innerHTML = cardInnerHtml;
+        } else {
+          card = document.createElement('div');
+          card.setAttribute('data-card-symbol', item.symbol);
+          card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
+          card.setAttribute('style', cardStyle);
+          card.innerHTML = cardInnerHtml;
+          container.appendChild(card);
+        }
+
+        delete existingCardsMap[item.symbol];
+
         card.querySelector('.trade-meme-btn')?.addEventListener('click', async () => {
           await this.selectAndOpenTradeChart(item.symbol, '1m', item);
         });
-
-        container.appendChild(card);
       });
+
+      // Remove cards for expired/closed setups
+      Object.values(existingCardsMap).forEach(c => c.remove());
     } catch (e) {
       if (container) container.innerHTML = `<div class="loading-state-box">Scanner error: ${e.message}</div>`;
     }
