@@ -2853,6 +2853,34 @@ body {
 /* ==========================================================================
    FLOATING TRADINGVIEW RISK / REWARD POSITION OVERLAY BOX
    ========================================================================== */
+.rr-box-advisory {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.rr-box-advisory.intact {
+  background: rgba(0, 230, 118, 0.12);
+  border: 1px solid rgba(0, 230, 118, 0.4);
+  color: #00e676;
+}
+
+.rr-box-advisory.exit-warning {
+  background: rgba(255, 59, 48, 0.22);
+  border: 1.5px solid #ff3b30;
+  color: #ff3b30;
+  font-weight: 800;
+  animation: pulseRedBanner 1.5s infinite;
+}
+
+@keyframes pulseRedBanner {
+  0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 59, 48, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+}
+
 .risk-reward-overlay-box {
   position: absolute;
   top: 40px;

@@ -2293,6 +2293,27 @@ class ScalperApp {
       scoreEl.textContent = `Score: ${scoreVal}/100`;
     }
 
+    // Dynamic Trade Intact vs Exit Advisory Overlay
+    const advisoryEl = document.getElementById('rr-box-advisory');
+    if (advisoryEl) {
+      advisoryEl.style.display = 'block';
+      if (sig.shouldExit) {
+        advisoryEl.className = 'rr-box-advisory exit-warning';
+        advisoryEl.textContent = `🚨 EXIT TRADE NOW: CLOSE AT MARKET (${sig.exitReason || 'MOMENTUM REVERSAL'})`;
+      } else {
+        advisoryEl.className = 'rr-box-advisory intact';
+        let curPrice = this.livePrices[sym]?.price;
+        if (!curPrice && this.bars && this.bars.length > 0 && (this.symbol || '').toUpperCase() === sym) {
+          curPrice = this.bars[this.bars.length - 1].close;
+        }
+        let pnlPct = 0;
+        if (entryPrice > 0 && curPrice > 0) {
+          pnlPct = isBuy ? ((curPrice - entryPrice) / entryPrice) * 100 : ((entryPrice - curPrice) / entryPrice) * 100;
+        }
+        advisoryEl.textContent = `🟢 TRADE INTACT • Live PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+      }
+    }
+
     const entryEl = document.getElementById('rr-box-entry');
     if (entryEl) entryEl.textContent = entryPrice > 0 ? `$${entryPrice.toFixed(decimals)}` : '---';
 
@@ -2474,6 +2495,8 @@ class ScalperApp {
         score100: scoreVal,
         decimals: decimalsVal,
         timeframe: targetTf,
+        shouldExit: signal.shouldExit || false,
+        exitReason: signal.exitReason || null,
         reasons: signal.reasons || [signal.description || 'High conviction setup']
       };
 
@@ -2508,6 +2531,11 @@ class ScalperApp {
       } else if (price < prevPrice) {
         this.dom.tickerPrice.className = 'ticker-price flash-down';
       }
+    }
+
+    // Refresh overlay box live PnL if active signal exists
+    if (this.activeSignal) {
+      this.updateRiskRewardOverlayBox(this.activeSignal);
     }
 
     // Also update trading dock action buttons ask/bid text
@@ -4581,6 +4609,10 @@ class ScalperApp {
           const avgVol = prev20.reduce((s, c) => s + c.volume, 0) / prev20.length;
           const volRatio = avgVol > 0 ? (confirmedBar.volume / avgVol) : 1;
 
+          const refBar = candles[candles.length - 6];
+          const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
+          const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
+
           // 1. Check if locked active trade signal exists within 4-hour window
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
@@ -4588,15 +4620,46 @@ class ScalperApp {
             const isTp3Hit = (cached.dir === 'LONG') ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
             const isSlHit = (cached.dir === 'LONG') ? (curClose <= cached.sl) : (curClose >= cached.sl);
             if ((now - cached.time) < 14400000 && !isTp3Hit && !isSlHit) {
+              // Perform dynamic invalidation checks on active trade
+              const isLong = cached.dir === 'LONG';
+              const pnlPct = isLong 
+                ? ((curClose - cached.entry) / cached.entry) * 100
+                : ((cached.entry - curClose) / cached.entry) * 100;
+
+              // Check 1: Opposite Volume Surge (Reversal)
+              const isOppositeSurge = isLong
+                ? (totalMovePct < -0.1 && volRatio >= 1.40)
+                : (totalMovePct > 0.1 && volRatio >= 1.40);
+
+              // Check 2: Structure Invalidation (Price past 70% toward SL)
+              const slDist = Math.abs(cached.entry - cached.sl);
+              const distToSl = isLong ? (cached.entry - curClose) : (curClose - cached.entry);
+              const isStructureBroken = slDist > 0 && (distToSl / slDist) >= 0.70;
+
+              // Check 3: Volume Stagnation (> 30m open, PnL < 0.1%, volRatio < 0.75x)
+              const isStagnant = (now - cached.time) > 1800000 && pnlPct < 0.10 && volRatio < 0.75;
+
+              if (isOppositeSurge) {
+                cached.shouldExit = true;
+                cached.exitReason = 'MOMENTUM REVERSAL';
+              } else if (isStructureBroken) {
+                cached.shouldExit = true;
+                cached.exitReason = 'STRUCTURE INVALIDATED';
+              } else if (isStagnant) {
+                cached.shouldExit = true;
+                cached.exitReason = 'VOLUME STAGNATION';
+              } else {
+                cached.shouldExit = false;
+                cached.exitReason = null;
+              }
+
+              cached.currentPrice = curClose;
+              cached.pnlPct = pnlPct;
               return cached;
             }
           }
 
           // 2. Early Breakout, Momentum & Volatility Squeeze Calculations
-          const refBar = candles[candles.length - 6];
-          const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
-          const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
-
           let sumRange = 0;
           for (let i = candles.length - 17; i < candles.length - 2; i++) {
             sumRange += (candles[i].high - candles[i].low);
@@ -4691,6 +4754,22 @@ class ScalperApp {
               ? `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 WHALE SPIKE ${item.volRatio.toFixed(1)}x</span>`
               : `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`);
 
+        let exitAdvisoryHtml = '';
+        if (item.shouldExit) {
+          exitAdvisoryHtml = `
+            <div class="rr-box-advisory exit-warning" style="margin:8px 0; font-size:11px; text-align:center;">
+              🚨 EXIT TRADE NOW: CLOSE AT MARKET (${item.exitReason || 'MOMENTUM REVERSAL'})
+            </div>
+          `;
+        } else if (item.entry) {
+          const livePnl = item.pnlPct !== undefined ? item.pnlPct : 0;
+          exitAdvisoryHtml = `
+            <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center;">
+              🟢 TRADE INTACT • Live PnL: ${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%
+            </div>
+          `;
+        }
+
         card.innerHTML = `
           <div class="setup-card-header">
             <div style="display:flex; align-items:center; gap:8px;">
@@ -4703,6 +4782,7 @@ class ScalperApp {
             <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${item.score}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
             <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">$${item.price.toFixed(item.decimals)}</span>
           </div>
+          ${exitAdvisoryHtml}
           <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;">
             <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">$${item.sl.toFixed(item.decimals)}</b></div>
             <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">$${item.tp1.toFixed(item.decimals)}</b></div>
