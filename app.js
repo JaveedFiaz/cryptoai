@@ -4597,6 +4597,36 @@ class ScalperApp {
     }
   }
 
+  loadMemeCache() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('crypto_scalper_meme_cache_v3');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            const now = Date.now();
+            const cleaned = {};
+            for (const sym in parsed) {
+              if (parsed[sym] && (now - (parsed[sym].time || 0)) < 14400000) { // 4 hours TTL
+                cleaned[sym] = parsed[sym];
+              }
+            }
+            return cleaned;
+          }
+        }
+      }
+    } catch (e) {}
+    return {};
+  }
+
+  saveMemeCache() {
+    try {
+      if (typeof localStorage !== 'undefined' && this.memeSignalsCache) {
+        localStorage.setItem('crypto_scalper_meme_cache_v3', JSON.stringify(this.memeSignalsCache));
+      }
+    } catch (e) {}
+  }
+
   calcEMA(prices, period) {
     if (!prices || prices.length < period) return null;
     const k = 2 / (period + 1);
@@ -4647,7 +4677,9 @@ class ScalperApp {
       container.innerHTML = '<div class="loading-state-box">⚡ Active Scanning 24 Top Meme Coins for Early Consolidation Breakouts & Whale Volume Surges...</div>';
     }
 
-    if (!this.memeSignalsCache) this.memeSignalsCache = {};
+    if (!this.memeSignalsCache || Object.keys(this.memeSignalsCache).length === 0) {
+      this.memeSignalsCache = this.loadMemeCache();
+    }
 
     const memeSymbols = [
       'PEPEUSDT', 'DOGEUSDT', 'SHIBUSDT', 'FLOKIUSDT', 'BONKUSDT', 
@@ -4705,22 +4737,27 @@ class ScalperApp {
 
             if ((now - cached.time) > 14400000) {
               delete this.memeSignalsCache[symbol];
+              this.saveMemeCache();
             } else {
               if (isSlHit) {
                 cached.status = 'SL_HIT';
                 cached.shouldExit = true;
                 cached.exitReason = 'STOP LOSS HIT';
+                this.saveMemeCache();
                 return cached;
               } else if (isTp3Hit) {
                 cached.status = 'TP3_HIT';
                 cached.shouldExit = false;
                 cached.exitReason = 'ALL TARGETS HIT';
+                this.saveMemeCache();
                 return cached;
               } else if (isTp2Hit) {
                 cached.status = 'TP2_HIT';
+                this.saveMemeCache();
                 return cached;
               } else if (isTp1Hit) {
                 cached.status = 'TP1_HIT';
+                this.saveMemeCache();
                 return cached;
               }
 
@@ -4748,6 +4785,7 @@ class ScalperApp {
                 cached.exitReason = null;
               }
 
+              this.saveMemeCache();
               return cached;
             }
           }
@@ -4847,6 +4885,7 @@ class ScalperApp {
 
           if (dir !== 'NEUTRAL') {
             this.memeSignalsCache[symbol] = sigObj;
+            this.saveMemeCache();
           }
 
           return sigObj;
@@ -4862,7 +4901,7 @@ class ScalperApp {
       if (!container) return;
 
       if (topSetups.length === 0) {
-        container.innerHTML = '<div class="loading-state-box">⚡ Scanning for Strict Confluence Breakouts (Score 80+)...</div>';
+        container.innerHTML = '<div class="loading-state-box">⚡ Real-time Radar Active — Monitoring 24 Top Meme Coins. No new breakout setups meeting strict 80+ score criteria at this exact bar. Scanning automatically every 15s...</div>';
         return;
       }
 
