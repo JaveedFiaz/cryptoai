@@ -4597,6 +4597,42 @@ class ScalperApp {
     }
   }
 
+  calcEMA(prices, period) {
+    if (!prices || prices.length < period) return null;
+    const k = 2 / (period + 1);
+    let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    for (let i = period; i < prices.length; i++) {
+      ema = (prices[i] * k) + (ema * (1 - k));
+    }
+    return ema;
+  }
+
+  calcRSI(closes, period = 14) {
+    if (!closes || closes.length <= period) return 50;
+    let gains = 0, losses = 0;
+    for (let i = 1; i <= period; i++) {
+      const diff = closes[i] - closes[i - 1];
+      if (diff >= 0) gains += diff;
+      else losses -= diff;
+    }
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+
+    for (let i = period + 1; i < closes.length; i++) {
+      const diff = closes[i] - closes[i - 1];
+      if (diff >= 0) {
+        avgGain = (avgGain * 13 + diff) / 14;
+        avgLoss = (avgLoss * 13) / 14;
+      } else {
+        avgGain = (avgGain * 13) / 14;
+        avgLoss = (avgLoss * 13 - diff) / 14;
+      }
+    }
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
+  }
+
   async refreshMemeCoinTracker(isAutoScan = false) {
     const container = document.getElementById('memecoin-cards-container');
     const refreshBtn = document.getElementById('memecoin-refresh-btn');
@@ -4650,30 +4686,52 @@ class ScalperApp {
           const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
           const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
 
-          // 1. Check if locked active trade signal exists within 4-hour window
+          // 1. Check if locked active trade signal exists within 4-hour window (PERSISTENT LIFECYCLE)
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
             const curClose = latestBar.close;
-            const isTp3Hit = (cached.dir === 'LONG') ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
-            const isSlHit = (cached.dir === 'LONG') ? (curClose <= cached.sl) : (curClose >= cached.sl);
-            if ((now - cached.time) < 14400000 && !isTp3Hit && !isSlHit) {
-              // Perform dynamic invalidation checks on active trade
-              const isLong = cached.dir === 'LONG';
-              const pnlPct = isLong 
-                ? ((curClose - cached.entry) / cached.entry) * 100
-                : ((cached.entry - curClose) / cached.entry) * 100;
+            const isLong = cached.dir === 'LONG';
+            const isTp3Hit = isLong ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
+            const isTp2Hit = isLong ? (curClose >= cached.tp2) : (curClose <= cached.tp2);
+            const isTp1Hit = isLong ? (curClose >= cached.tp1) : (curClose <= cached.tp1);
+            const isSlHit = isLong ? (curClose <= cached.sl) : (curClose >= cached.sl);
 
-              // Check 1: Opposite Volume Surge (Reversal)
+            const pnlPct = isLong 
+              ? ((curClose - cached.entry) / cached.entry) * 100
+              : ((cached.entry - curClose) / cached.entry) * 100;
+
+            cached.currentPrice = curClose;
+            cached.pnlPct = pnlPct;
+
+            if ((now - cached.time) > 14400000) {
+              delete this.memeSignalsCache[symbol];
+            } else {
+              if (isSlHit) {
+                cached.status = 'SL_HIT';
+                cached.shouldExit = true;
+                cached.exitReason = 'STOP LOSS HIT';
+                return cached;
+              } else if (isTp3Hit) {
+                cached.status = 'TP3_HIT';
+                cached.shouldExit = false;
+                cached.exitReason = 'ALL TARGETS HIT';
+                return cached;
+              } else if (isTp2Hit) {
+                cached.status = 'TP2_HIT';
+                return cached;
+              } else if (isTp1Hit) {
+                cached.status = 'TP1_HIT';
+                return cached;
+              }
+
+              // Dynamic invalidation checks on active trade
               const isOppositeSurge = isLong
                 ? (totalMovePct < -0.1 && volRatio >= 1.40)
                 : (totalMovePct > 0.1 && volRatio >= 1.40);
 
-              // Check 2: Structure Invalidation (Price past 70% toward SL)
               const slDist = Math.abs(cached.entry - cached.sl);
               const distToSl = isLong ? (cached.entry - curClose) : (curClose - cached.entry);
               const isStructureBroken = slDist > 0 && (distToSl / slDist) >= 0.70;
-
-              // Check 3: Volume Stagnation (> 30m open, PnL < 0.1%, volRatio < 0.75x)
               const isStagnant = (now - cached.time) > 1800000 && pnlPct < 0.10 && volRatio < 0.75;
 
               if (isOppositeSurge) {
@@ -4690,13 +4748,16 @@ class ScalperApp {
                 cached.exitReason = null;
               }
 
-              cached.currentPrice = curClose;
-              cached.pnlPct = pnlPct;
               return cached;
             }
           }
 
-          // 2. Early Breakout, Momentum & Volatility Squeeze Calculations
+          // 2. Multi-Factor Technical Calculations (EMA, RSI, ATR, Body Ratio)
+          const closes = candles.map(c => c.close);
+          const ema20 = this.calcEMA(closes, 20);
+          const ema50 = this.calcEMA(closes, 50);
+          const rsi = this.calcRSI(closes, 14);
+
           let sumRange = 0;
           for (let i = candles.length - 17; i < candles.length - 2; i++) {
             sumRange += (candles[i].high - candles[i].low);
@@ -4710,33 +4771,58 @@ class ScalperApp {
             return null;
           }
 
-          // 4. Early Base Breakout Verification (Whale volume surge + early base move)
+          // 4. Directional Breakout Verification
           const isBullish = volRatio >= 1.20 && totalMovePct > 0.05 && totalMovePct <= 1.8;
           const isBearish = volRatio >= 1.20 && totalMovePct < -0.05 && totalMovePct >= -1.8;
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
 
-          // 5. Early Base Entry Level (Set near base support/resistance, not peak of pump)
+          // 5. STRICT 5-PILLAR FAKEOUT FILTERING (EMA Trend Alignment, RSI Bounds, Body Ratio)
+          const isEmaAligned = isBullish 
+            ? (ema20 && ema50 && confirmedBar.close > ema20 && ema20 > ema50)
+            : (ema20 && ema50 && confirmedBar.close < ema20 && ema20 < ema50);
+
+          // Filter out overbought/oversold pumps & dumps!
+          if (isBullish && rsi > 72) return null; // Overbought pump top guard
+          if (isBearish && rsi < 28) return null; // Oversold dump bottom guard
+
+          const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
+          if (bodyRatio < 0.45) return null; // Reject weak wick traps!
+
+          // 6. Early Base Entry Level & Wider ATR Buffer (1.5x ATR)
           const entry = (dir === 'LONG') 
             ? Math.min(confirmedBar.close, confirmedBar.open + (confirmedBar.high - confirmedBar.open) * 0.35)
             : Math.max(confirmedBar.close, confirmedBar.open - (confirmedBar.open - confirmedBar.low) * 0.35);
 
-          const sl = (dir === 'SHORT') ? entry + (atr * 1.3) : entry - (atr * 1.3);
+          const sl = (dir === 'SHORT') ? entry + (atr * 1.5) : entry - (atr * 1.5);
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
           const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
           const tp3 = (dir === 'SHORT') ? entry - (risk * 5.0) : entry + (risk * 5.0);
 
-          // 6. LATE ENTRY GUARD: If current live price has ALREADY reached closer to TP1 than Entry, reject signal!
+          // 7. LATE ENTRY GUARD: Reject if current price has ALREADY reached closer to TP1 than Entry
           const distToTp1 = Math.abs(latestBar.close - tp1);
           const distToEntry = Math.abs(latestBar.close - entry);
           if (distToTp1 < distToEntry) {
             return null; // Reject late entries!
           }
 
-          let score = isBigMoveBrewing ? (88 + Math.min(10, Math.floor(volRatio * 4))) : (78 + Math.min(18, Math.floor(volRatio * 5)));
+          // 8. ACCURATE 100-POINT MULTI-FACTOR CONFLUENCE SCORE
+          let score = 55; // Base score
+          if (volRatio >= 2.0) score += 20;
+          else if (volRatio >= 1.5) score += 14;
+          else score += 8;
+
+          if (isEmaAligned) score += 15;
+          else score -= 20; // Heavy penalty for counter-trend fakeouts!
+
+          if ((isBullish && rsi >= 48 && rsi <= 68) || (isBearish && rsi >= 32 && rsi <= 52)) score += 10;
+          if (bodyRatio >= 0.55) score += 8;
+          if (isBigMoveBrewing) score += 10;
+
           if (score > 98) score = 98;
+          if (score < 80) return null; // STRICT 80+ THRESHOLD: Suppress all fakeouts!
 
           const winProb = Math.min(96, Math.max(82, Math.floor(score * 0.94)));
           const decimals = entry < 0.0001 ? 8 : (entry < 0.01 ? 6 : (entry < 1 ? 4 : 2));
@@ -4769,22 +4855,24 @@ class ScalperApp {
         }
       }));
 
-      // Render ALL active early breakout setups sorted by score (no artificial 5-item cap)
+      // Render ALL active setups sorted by score
       const topSetups = results.filter(Boolean).sort((a, b) => b.score - a.score);
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) return;
 
       if (topSetups.length === 0) {
-        container.innerHTML = '<div class="loading-state-box">⚡ Scanning for Early Consolidation Breakouts (Score 80+)...</div>';
+        container.innerHTML = '<div class="loading-state-box">⚡ Scanning for Strict Confluence Breakouts (Score 80+)...</div>';
         return;
       }
 
       container.innerHTML = '';
       topSetups.forEach(item => {
         const card = document.createElement('div');
-        card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
+        let cardStyle = `border:1px solid ${dirColor};`;
+        card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
+        
         const whaleBadge = item.isBigMoveBrewing
           ? `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${item.volRatio.toFixed(1)}x</span>`
           : (item.volRatio >= 2.0 
@@ -4792,7 +4880,23 @@ class ScalperApp {
               : `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${item.volRatio.toFixed(1)}x</span>`);
 
         let exitAdvisoryHtml = '';
-        if (item.shouldExit) {
+        if (item.status === 'SL_HIT') {
+          cardStyle = `border:2px solid #ff3b30; opacity:0.9;`;
+          exitAdvisoryHtml = `
+            <div class="rr-box-advisory exit-warning" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(255,59,48,0.25); border:1.5px solid #ff3b30; color:#ff3b30; font-weight:800;">
+              🔴 STOP LOSS HIT ($${item.sl.toFixed(item.decimals)}) • Trade Closed (${(item.pnlPct || 0).toFixed(2)}%)
+            </div>
+          `;
+        } else if (item.status === 'TP3_HIT' || item.status === 'TP2_HIT' || item.status === 'TP1_HIT') {
+          cardStyle = `border:2px solid #00e676;`;
+          const tpLabel = item.status === 'TP3_HIT' ? 'TP3' : (item.status === 'TP2_HIT' ? 'TP2' : 'TP1');
+          exitAdvisoryHtml = `
+            <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(0,230,118,0.2); border:1.5px solid #00e676; color:#00e676; font-weight:800;">
+              🚀 TARGET ${tpLabel} HIT • Profit Secured (+${(item.pnlPct || 0).toFixed(2)}%)
+            </div>
+          `;
+        } else if (item.shouldExit) {
+          cardStyle = `border:2px solid #ff9500;`;
           exitAdvisoryHtml = `
             <div class="rr-box-advisory exit-warning" style="margin:8px 0; font-size:11px; text-align:center;">
               🚨 EXIT TRADE NOW: CLOSE AT MARKET (${item.exitReason || 'MOMENTUM REVERSAL'})
@@ -4806,17 +4910,13 @@ class ScalperApp {
 
           if (curPrice > 0 && item.entry > 0) {
             if (isLong) {
-              if (item.tp1 && curPrice >= item.tp1) {
-                statusTag = '🎯 TP1 HIT • Locked Profit';
-              } else if (curPrice < item.entry && item.sl) {
+              if (curPrice < item.entry && item.sl) {
                 statusTag = '⚡ DISCOUNT ENTRY (Retest Support)';
               } else if (curPrice > item.entry) {
                 statusTag = '🟢 IN PROFIT (Moving to TP1)';
               }
             } else { // SHORT
-              if (item.tp1 && curPrice <= item.tp1) {
-                statusTag = '🎯 TP1 HIT • Locked Profit';
-              } else if (curPrice > item.entry && item.sl) {
+              if (curPrice > item.entry && item.sl) {
                 statusTag = '⚡ DISCOUNT ENTRY (Retest Resistance)';
               } else if (curPrice < item.entry) {
                 statusTag = '🟢 IN PROFIT (Moving to TP1)';
@@ -4831,6 +4931,7 @@ class ScalperApp {
           `;
         }
 
+        card.setAttribute('style', cardStyle);
         card.innerHTML = `
           <div class="setup-card-header">
             <div style="display:flex; align-items:center; gap:8px;">
