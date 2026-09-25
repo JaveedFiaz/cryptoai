@@ -4682,9 +4682,22 @@ class ScalperApp {
           localStorage.setItem('crypto_scalper_active_category', cat);
         }
       } catch (e) {}
-      if (memeBtn) memeBtn.classList.toggle('active', cat === 'memecoins');
-      if (highCapBtn) highCapBtn.classList.toggle('active', cat === 'highcap');
-      if (bigMovesBtn) bigMovesBtn.classList.toggle('active', cat === 'bigmoves');
+
+      const activeStyle = "background:linear-gradient(135deg, rgba(0, 230, 118, 0.22), rgba(0, 210, 255, 0.22)); border:1.5px solid #00d2ff; color:#fff; font-weight:800; padding:10px 18px; border-radius:8px; cursor:pointer; box-shadow:0 0 16px rgba(0,210,255,0.35); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:inline-flex; align-items:center; gap:6px;";
+      const inactiveStyle = "background:rgba(22, 27, 34, 0.85); border:1px solid rgba(255, 255, 255, 0.12); color:#c9d1d9; font-weight:700; padding:10px 18px; border-radius:8px; cursor:pointer; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:inline-flex; align-items:center; gap:6px;";
+
+      if (memeBtn) {
+        memeBtn.classList.toggle('active', cat === 'memecoins');
+        memeBtn.setAttribute('style', cat === 'memecoins' ? activeStyle : inactiveStyle);
+      }
+      if (highCapBtn) {
+        highCapBtn.classList.toggle('active', cat === 'highcap');
+        highCapBtn.setAttribute('style', cat === 'highcap' ? activeStyle : inactiveStyle);
+      }
+      if (bigMovesBtn) {
+        bigMovesBtn.classList.toggle('active', cat === 'bigmoves');
+        bigMovesBtn.setAttribute('style', cat === 'bigmoves' ? activeStyle : inactiveStyle);
+      }
       this.refreshMemeCoinTracker();
     };
 
@@ -4701,9 +4714,21 @@ class ScalperApp {
       bigMovesBtn.addEventListener('click', () => setCategory('bigmoves'));
     }
 
-    if (memeBtn) memeBtn.classList.toggle('active', this.activeMemeCategory === 'memecoins');
-    if (highCapBtn) highCapBtn.classList.toggle('active', this.activeMemeCategory === 'highcap');
-    if (bigMovesBtn) bigMovesBtn.classList.toggle('active', this.activeMemeCategory === 'bigmoves');
+    const activeStyle = "background:linear-gradient(135deg, rgba(0, 230, 118, 0.22), rgba(0, 210, 255, 0.22)); border:1.5px solid #00d2ff; color:#fff; font-weight:800; padding:10px 18px; border-radius:8px; cursor:pointer; box-shadow:0 0 16px rgba(0,210,255,0.35); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:inline-flex; align-items:center; gap:6px;";
+    const inactiveStyle = "background:rgba(22, 27, 34, 0.85); border:1px solid rgba(255, 255, 255, 0.12); color:#c9d1d9; font-weight:700; padding:10px 18px; border-radius:8px; cursor:pointer; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:inline-flex; align-items:center; gap:6px;";
+
+    if (memeBtn) {
+      memeBtn.classList.toggle('active', this.activeMemeCategory === 'memecoins');
+      memeBtn.setAttribute('style', this.activeMemeCategory === 'memecoins' ? activeStyle : inactiveStyle);
+    }
+    if (highCapBtn) {
+      highCapBtn.classList.toggle('active', this.activeMemeCategory === 'highcap');
+      highCapBtn.setAttribute('style', this.activeMemeCategory === 'highcap' ? activeStyle : inactiveStyle);
+    }
+    if (bigMovesBtn) {
+      bigMovesBtn.classList.toggle('active', this.activeMemeCategory === 'bigmoves');
+      bigMovesBtn.setAttribute('style', this.activeMemeCategory === 'bigmoves' ? activeStyle : inactiveStyle);
+    }
 
     const catTitle = this.activeMemeCategory === 'bigmoves'
       ? 'PRE-BREAKOUT BIG MOVES'
