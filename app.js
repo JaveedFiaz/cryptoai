@@ -1470,9 +1470,14 @@ class ScalperApp {
         withdateranges: true,
         save_image: true,
         save_chart_properties_to_local_storage: true,
-        auto_save_delay: 2,
+        auto_save_delay: 1,
+        charts_storage_url: 'https://saveload.tradingview.com',
+        charts_storage_api_version: '1.1',
+        client_id: 'tradingview.com',
+        user_id: 'public_user_crypto_scalper',
+        load_last_chart: true,
         studies: [],
-        enabled_features: ['use_localstorage_for_settings', 'side_toolbar_in_fullscreen_mode'],
+        enabled_features: ['use_localstorage_for_settings', 'side_toolbar_in_fullscreen_mode', 'save_chart_properties_to_local_storage'],
         disabled_features: ['create_volume_indicator_by_default', 'volume_force_overlay'],
         overrides: {
           'paneProperties.background': '#0b0e14',
@@ -4637,18 +4642,21 @@ class ScalperApp {
         }
       }));
 
-      const valid = results.filter(Boolean).sort((a, b) => b.score - a.score);
+      // Filter for highest conviction setups only (Score >= 76), sorted by score & win-rate, capped at Top 5
+      const allValid = results.filter(Boolean).sort((a, b) => b.score - a.score);
+      const highConviction = allValid.filter(item => item.score >= 76);
+      const topSetups = (highConviction.length > 0 ? highConviction : allValid).slice(0, 5);
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) return;
 
-      if (valid.length === 0) {
-        container.innerHTML = '<div class="loading-state-box">No active Meme Coin setups detected right now.</div>';
+      if (topSetups.length === 0) {
+        container.innerHTML = '<div class="loading-state-box">⚡ Scanning for High-Accuracy Meme Coin Setups (Score 80+)...</div>';
         return;
       }
 
       container.innerHTML = '';
-      valid.forEach(item => {
+      topSetups.forEach(item => {
         const card = document.createElement('div');
         card.className = `setup-card ${item.dir === 'LONG' ? 'bullish' : 'bearish'}`;
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
