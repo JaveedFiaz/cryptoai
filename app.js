@@ -1445,52 +1445,27 @@ class ScalperApp {
     return map[intv] || '1';
   }
 
-  updateTradingViewChartSymbol(symbol, interval) {
-    const cleanSym = (symbol || this.symbol || 'BTCUSDT').toUpperCase();
-    const tvSym = this.getTradingViewSymbol(cleanSym);
-    const tvInt = this.getTradingViewInterval(interval || this.interval);
-
-    const container = document.getElementById('tradingview_chart');
-    if (!container) return;
-
-    const iframe = container.querySelector('iframe');
-    if (iframe && iframe.contentWindow) {
-      try {
-        // PostMessage to TradingView widget iframe to change symbol in-place without unmounting iframe
-        iframe.contentWindow.postMessage(JSON.stringify({
-          name: 'change-symbol',
-          data: { symbol: tvSym, interval: tvInt }
-        }), '*');
-
-        if (this.tvWidget && typeof this.tvWidget.setSymbol === 'function') {
-          this.tvWidget.setSymbol(tvSym, tvInt);
-        }
-        return;
-      } catch (e) {
-        console.warn('postMessage symbol change error:', e);
-      }
-    }
-
-    this.initTradingViewChart();
-  }
-
-  initTradingViewChart() {
+  initTradingViewChart(forcedSymbol, forcedInterval) {
     const container = document.getElementById('tradingview_chart');
     if (!container) return;
 
     if (typeof TradingView === 'undefined' || typeof TradingView.widget === 'undefined') {
-      setTimeout(() => this.initTradingViewChart(), 350);
+      setTimeout(() => this.initTradingViewChart(forcedSymbol, forcedInterval), 350);
       return;
     }
 
-    // Preserve existing iframe if mounted to avoid wiping user drawings
-    if (container.querySelector('iframe')) {
-      this.updateTradingViewChartSymbol(this.symbol, this.interval);
+    const targetSym = (forcedSymbol || this.symbol || 'BTCUSDT').toUpperCase();
+    const targetInt = forcedInterval || this.interval || '1m';
+    const tvSymbol = this.getTradingViewSymbol(targetSym);
+    const tvInterval = this.getTradingViewInterval(targetInt);
+
+    // If widget iframe already exists and is displaying this exact symbol and interval, skip re-creation
+    if (this._currentTvSymbol === tvSymbol && this._currentTvInterval === tvInterval && container.querySelector('iframe')) {
       return;
     }
 
-    const tvSymbol = this.getTradingViewSymbol(this.symbol);
-    const tvInterval = this.getTradingViewInterval(this.interval);
+    this._currentTvSymbol = tvSymbol;
+    this._currentTvInterval = tvInterval;
 
     try {
       container.innerHTML = '';
@@ -1711,7 +1686,6 @@ class ScalperApp {
   async switchPair(newSymbol) {
     if (!newSymbol) return;
     const cleanSym = newSymbol.toUpperCase();
-    const prevSym = this.symbol;
     this.symbol = cleanSym;
     try {
       if (typeof localStorage !== 'undefined') {
@@ -1721,8 +1695,8 @@ class ScalperApp {
 
     this.engine.resetState();
 
-    // Update TradingView iframe symbol seamlessly (preserves user drawings per pair)
-    this.updateTradingViewChartSymbol(cleanSym, this.interval);
+    // Re-initialize TradingView chart for target symbol
+    this.initTradingViewChart(cleanSym, this.interval);
 
     await this.connectMarket(this.symbol, this.interval);
     this.syncPositionChartLines();
@@ -1745,7 +1719,7 @@ class ScalperApp {
     this.htfInterval = htfMap[newInterval] || '1h';
     this.engine.resetState();
 
-    this.updateTradingViewChartSymbol(this.symbol, newInterval);
+    this.initTradingViewChart(this.symbol, newInterval);
 
     await this.connectMarket(this.symbol, this.interval);
     this.syncPositionChartLines();
@@ -1765,8 +1739,8 @@ class ScalperApp {
       btn.classList.toggle('active', btn.getAttribute('data-pair') === this.symbol);
     });
 
-    // Update TradingView widget symbol seamlessly
-    this.updateTradingViewChartSymbol(this.symbol, this.interval);
+    // Ensure TradingView widget displays active market symbol
+    this.initTradingViewChart(this.symbol, this.interval);
 
     // 1. Detach old sockets
     if (this.activeWs) {
