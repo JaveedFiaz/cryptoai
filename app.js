@@ -4855,11 +4855,13 @@ class ScalperApp {
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
             const curClose = latestBar.close;
+            const curLow = latestBar.low;
+            const curHigh = latestBar.high;
             const isLong = cached.dir === 'LONG';
-            const isTp3Hit = isLong ? (curClose >= cached.tp3) : (curClose <= cached.tp3);
-            const isTp2Hit = isLong ? (curClose >= cached.tp2) : (curClose <= cached.tp2);
-            const isTp1Hit = isLong ? (curClose >= cached.tp1) : (curClose <= cached.tp1);
-            const isSlHit = isLong ? (curClose <= cached.sl) : (curClose >= cached.sl);
+            const isTp3Hit = isLong ? (curHigh >= cached.tp3) : (curLow <= cached.tp3);
+            const isTp2Hit = isLong ? (curHigh >= cached.tp2) : (curLow <= cached.tp2);
+            const isTp1Hit = isLong ? (curHigh >= cached.tp1) : (curLow <= cached.tp1);
+            const isSlHit = isLong ? (curLow <= cached.sl) : (curHigh >= cached.sl);
 
             const pnlPct = isLong 
               ? ((curClose - cached.entry) / cached.entry) * 100
@@ -4870,8 +4872,9 @@ class ScalperApp {
             cached.orderFlowBuyPct = orderFlowBuyPct;
             cached.orderFlowRatio = orderFlowRatio;
 
-            if (isSlHit) {
+            if (isSlHit || cached.status === 'SL_HIT') {
               cached.status = 'SL_HIT';
+              if (!cached.slHitTime) cached.slHitTime = now;
               cached.shouldExit = true;
               cached.exitReason = 'STOP LOSS HIT';
             } else if (isTp3Hit) {
@@ -4889,8 +4892,8 @@ class ScalperApp {
               }
             }
 
-            // Auto-purge old setup cards after 4 hours or if SL was hit over 15 mins ago
-            if ((now - (cached.time || 0)) > 14400000) {
+            // Auto-purge old setup cards after 4 hours or if SL was hit over 10 mins ago
+            if ((cached.status === 'SL_HIT' && (now - (cached.slHitTime || now)) > 600000) || ((now - (cached.time || 0)) > 14400000)) {
               delete this.memeSignalsCache[symbol];
               this.saveMemeCache();
               return null;
@@ -5064,7 +5067,7 @@ class ScalperApp {
 
       // Identify the #1 Prime Setup among active non-SL setups based on score & orderflow quality
       let topPickSymbol = null;
-      const activeSetups = topSetups.filter(s => s.status !== 'SL_HIT');
+      const activeSetups = topSetups.filter(s => s.status !== 'SL_HIT' && !s.shouldExit);
       if (activeSetups.length > 0) {
         const ranked = [...activeSetups].sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
@@ -5098,7 +5101,7 @@ class ScalperApp {
       topSetups.forEach(item => {
         let card = existingCardsMap[item.symbol];
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
-        const isTopPick = (item.symbol === topPickSymbol) && (item.status !== 'SL_HIT');
+        const isTopPick = (item.symbol === topPickSymbol) && (item.status !== 'SL_HIT') && (!item.shouldExit);
 
         let cardStyle = isTopPick
           ? `border:2px solid #ffd700; box-shadow:0 0 18px rgba(255,215,0,0.35); background:linear-gradient(180deg, rgba(255,215,0,0.08) 0%, rgba(20,25,38,0.95) 100%);`
