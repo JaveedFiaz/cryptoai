@@ -5194,9 +5194,11 @@ class ScalperApp {
         }
       }));
 
-      // Gather ALL active & completed setups across ALL categories (2-Hour SL retention) so cards NEVER vanish
+      // Gather active & completed setups STRICTLY matching targetSymbols for the active category tab
       const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
         if (!sig) return false;
+        // Strictly require symbol to belong to current active category's targetSymbols
+        if (!targetSymbols.includes(sig.symbol)) return false;
         if (sig.status === 'SL_HIT') {
           return (now - (sig.slHitTime || now)) < 7200000;
         }
@@ -5238,10 +5240,10 @@ class ScalperApp {
         return;
       }
 
-      // Permanent Prime Trade Lock: Check if an active Prime Trade is already locked in cache
+      // Permanent Prime Trade Lock: Check if an active Prime Trade is locked for this category tab
       let topPickSymbol = null;
       const activePrimeInCache = Object.values(this.memeSignalsCache || {}).find(s => 
-        s.isPrimeTrade && s.status !== 'SL_HIT' && !s.shouldExit && ((now - (s.time || 0)) < 14400000)
+        s.isPrimeTrade && targetSymbols.includes(s.symbol) && s.status !== 'SL_HIT' && !s.shouldExit && ((now - (s.time || 0)) < 14400000)
       );
 
       if (activePrimeInCache) {
