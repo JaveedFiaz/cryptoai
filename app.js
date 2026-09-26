@@ -112,11 +112,11 @@ class ScalperApp {
         }
       }
     } catch (e) {}
-    return 70;
+    return 85;
   }
 
   saveAutoTradeScore(score) {
-    const num = Math.max(50, Math.min(99, parseInt(score, 10) || 70));
+    const num = Math.max(50, Math.min(99, parseInt(score, 10) || 85));
     this.autoTradeMinScore = num;
     try {
       if (typeof localStorage !== 'undefined') {
@@ -138,15 +138,15 @@ class ScalperApp {
   updateAutoScoreButton() {
     const btn = document.getElementById('autotrade-score-btn');
     if (btn) {
-      btn.textContent = `Score: ${this.autoTradeMinScore || 70}+`;
+      btn.textContent = `Score: ${this.autoTradeMinScore || 85}+`;
     }
     const preview = document.getElementById('active-score-preview');
     if (preview) {
-      preview.textContent = String(this.autoTradeMinScore || 70);
+      preview.textContent = String(this.autoTradeMinScore || 85);
     }
     const customInput = document.getElementById('custom-autotrade-score');
     if (customInput) {
-      customInput.value = String(this.autoTradeMinScore || 70);
+      customInput.value = String(this.autoTradeMinScore || 85);
     }
     document.querySelectorAll('.score-select-card').forEach(card => {
       const s = parseInt(card.getAttribute('data-score'), 10);
@@ -158,9 +158,15 @@ class ScalperApp {
   updateModeBadge() {
     const badge = document.getElementById('mode-badge');
     if (!badge) return;
-    badge.className = 'mexc-live-badge';
-    badge.textContent = 'MEXC LIVE';
-    badge.title = 'Active Execution Mode: MEXC Live Futures';
+    if (this.tradingMode === 'MEXC_REAL') {
+      badge.className = 'mexc-live-badge';
+      badge.textContent = 'MEXC LIVE';
+      badge.title = 'Active Execution Mode: MEXC Live Futures';
+    } else {
+      badge.className = 'mexc-live-badge paper-mode';
+      badge.textContent = 'PAPER';
+      badge.title = 'Active Execution Mode: Paper simulation';
+    }
   }
 
   loadSavedMexcCredentials() {
@@ -192,7 +198,7 @@ class ScalperApp {
           }
           const mexcAutoToggle = document.getElementById('mexc-auto-execute-toggle');
           if (mexcAutoToggle) {
-            mexcAutoToggle.checked = true;
+            mexcAutoToggle.checked = false;
           }
         }
       }
@@ -1384,9 +1390,9 @@ class ScalperApp {
         }
       });
 
-      // Sub-Panels: RSI (14)
+      // Sub-Panels: RSI (14) — only if the user enabled them (default off)
       const rsiContainer = document.getElementById('rsi-container');
-      if (rsiContainer) {
+      if (rsiContainer && this.visibleIndicators.rsi) {
         this.rsiChart = LightweightCharts.createChart(rsiContainer, {
           width: rsiContainer.clientWidth || container.clientWidth,
           height: 110,
@@ -1400,9 +1406,8 @@ class ScalperApp {
         this.rsiSeries.createPriceLine({ price: 30, color: '#089981', lineWidth: 1, lineStyle: 2, title: '30' });
       }
 
-      // Sub-Panels: MACD (12, 26, 9)
       const macdContainer = document.getElementById('macd-container');
-      if (macdContainer) {
+      if (macdContainer && this.visibleIndicators.macd) {
         this.macdChart = LightweightCharts.createChart(macdContainer, {
           width: macdContainer.clientWidth || container.clientWidth,
           height: 110,
@@ -4430,7 +4435,7 @@ class ScalperApp {
           pingDisplay.textContent = '12ms';
         }
         if (autoExecuteToggle) {
-          autoExecuteToggle.checked = true;
+          autoExecuteToggle.checked = false;
         }
         if (verifiedEquity != null && eqDisplay) {
           eqDisplay.textContent = `$${Number(verifiedEquity).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -4506,6 +4511,7 @@ class ScalperApp {
           this.autoTradingEnabled = !!data.status.autoTradingEnabled;
           if (data.status.mode) this.tradingMode = data.status.mode;
           this.updateAutoTradeButton();
+          this.updateModeBadge();
         }
       }).catch(() => {
         this.updateAutoTradeButton();
@@ -4936,23 +4942,23 @@ class ScalperApp {
           const squeezeRatio = (atr / confirmedBar.close) * 100;
 
           // Pre-Breakout Alert: Volatility Squeeze + Orderflow Imbalance
-          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 58 || orderFlowBuyPct <= 42 || volRatio >= 1.25);
-          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 58);
-          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 42);
+          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 60.0 || orderFlowBuyPct <= 40.0 || volRatio >= 1.35);
+          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 60.0);
+          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 40.0);
 
           // 3. OVER-EXTENSION GUARD
           if (Math.abs(totalMovePct) > 2.5 || Math.abs(singleBarMovePct) > 1.8) {
             return null;
           }
 
-          // 4. Directional Breakout Verification with Strict Taker Orderflow & BTC Alignment
-          const isBullish = (volRatio >= 1.15 || isBigMoveBrewing) && (totalMovePct >= 0.10) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 56.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 62.0);
-          const isBearish = (volRatio >= 1.15 || isBigMoveBrewing) && (totalMovePct <= -0.10) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 44.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 38.0);
+          // 4. Directional Breakout Verification with Strict Taker Orderflow (>= 60.0%) & BTC Alignment
+          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 60.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 65.0);
+          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 40.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 35.0);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
 
-          // 5. 6-PILLAR CONFLUENCE FILTERING (Triple EMA Stack + 15m HTF + VWAP Alignment)
+          // 5. MULTI-TIMEFRAME CONFLUENCE (1h + 15m + 5m Triple EMA Alignment)
           const isEmaAligned = isBullish 
             ? (ema20 && ema50 && confirmedBar.close > ema20 && ema20 > ema50 && (!ema100 || confirmedBar.close > ema100))
             : (ema20 && ema50 && confirmedBar.close < ema20 && ema20 < ema50 && (!ema100 || confirmedBar.close < ema100));
@@ -4965,11 +4971,23 @@ class ScalperApp {
             closes15m.push(candles[i].close);
           }
           const ema15m20 = this.calcEMA(closes15m, 20);
-          const isHtfAligned = isBullish
+          const is15mAligned = isBullish
             ? (!ema15m20 || confirmedBar.close >= ema15m20)
             : (!ema15m20 || confirmedBar.close <= ema15m20);
 
-          if (!isHtfAligned) return null; // Reject trades against 15m HTF trend
+          if (!is15mAligned) return null; // Reject trades against 15m HTF trend
+
+          // 1h HTF Trend Alignment (Resample 12x 5m candles)
+          const closes1h = [];
+          for (let i = 11; i < candles.length; i += 12) {
+            closes1h.push(candles[i].close);
+          }
+          const ema1h20 = this.calcEMA(closes1h, 10);
+          const is1hAligned = isBullish
+            ? (!ema1h20 || confirmedBar.close >= ema1h20)
+            : (!ema1h20 || confirmedBar.close <= ema1h20);
+
+          if (!is1hAligned) return null; // Reject trades against 1h macro trend
 
           const isVwapAligned = isBullish
             ? (confirmedBar.close >= currentVwap)
@@ -4977,19 +4995,19 @@ class ScalperApp {
 
           if (!isVwapAligned) return null; // Reject counter-VWAP trades into institutional resistance
 
-          if (isBullish && rsi > 70) return null; // Overbought guard
-          if (isBearish && rsi < 30) return null; // Oversold guard
+          if (isBullish && rsi > 68) return null; // Overbought guard
+          if (isBearish && rsi < 32) return null; // Oversold guard
 
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
-          if (bodyRatio < 0.40) return null; // Reject thin doji traps (require decisive body)
+          if (bodyRatio < 0.45) return null; // Reject thin doji traps (require decisive body)
 
-          // 6. Deep Pullback Entry & Expanded 2.5x ATR Stop Loss Protection
+          // 6. Deep 35% Pullback Entry & Expanded 2.8x ATR Stop Loss Protection
           const candleRange = confirmedBar.high - confirmedBar.low;
           const entry = (dir === 'LONG') 
-            ? confirmedBar.close - (candleRange * 0.30)
-            : confirmedBar.close + (candleRange * 0.30);
+            ? confirmedBar.close - (candleRange * 0.35)
+            : confirmedBar.close + (candleRange * 0.35);
 
-          const sl = (dir === 'SHORT') ? entry + (atr * 2.5) : entry - (atr * 2.5);
+          const sl = (dir === 'SHORT') ? entry + (atr * 2.8) : entry - (atr * 2.8);
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
           const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
@@ -5009,25 +5027,26 @@ class ScalperApp {
           else if (volRatio >= 1.0) score += 5;
 
           if (isEmaAligned) score += 12;
-          if (isHtfAligned) score += 10;
+          if (is15mAligned) score += 10;
+          if (is1hAligned) score += 10;
           if (isVwapAligned) score += 10;
           if ((isBullish && rsi >= 45 && rsi <= 65) || (isBearish && rsi >= 35 && rsi <= 55)) score += 10;
           if (bodyRatio >= 0.55) score += 10;
           if (isBigMoveBrewing) score += 10;
 
           // Orderflow score boost
-          if (isBullish && orderFlowBuyPct >= 58) score += 15;
-          if (isBearish && orderFlowBuyPct <= 42) score += 15;
+          if (isBullish && orderFlowBuyPct >= 60.0) score += 15;
+          if (isBearish && orderFlowBuyPct <= 40.0) score += 15;
 
           // Blend with ScalperEngine score if available
           if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL')) {
-            score = Math.round((score + (engineSig.score100 || 82)) / 2);
+            score = Math.round((score + (engineSig.score100 || 85)) / 2);
           }
 
           score = Math.min(99, Math.max(50, Math.round(score)));
 
-          // Strict Confluence Cutoff Gate: Only emit high-conviction trades (score >= 82)
-          if (score < 82) return null;
+          // Strict Confluence Cutoff Gate: Only emit ultra-conviction trades (score >= 85)
+          if (score < 85) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
           const t24 = tickerMap24h[symbol] || { change24h: 0, volume24h: 0 };
@@ -5088,15 +5107,14 @@ class ScalperApp {
         }
       }));
 
-      // Gather live active & completed setups (including SL_HIT cards for 30 mins) to GUARANTEE trades NEVER vanish
+      // Gather ALL active & completed setups across ALL categories to GUARANTEE trades NEVER vanish
       const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
         if (!sig) return false;
         // Keep SL_HIT cards on screen for 30 minutes for audit & transparency
         if (sig.status === 'SL_HIT') {
           return (now - (sig.slHitTime || now)) < 1800000;
         }
-        if ((now - (sig.time || 0)) > 14400000) return false;
-        return targetSymbols.includes(sig.symbol);
+        return (now - (sig.time || 0)) < 14400000;
       });
 
       const newlyFound = results.filter(Boolean);
@@ -5134,22 +5152,33 @@ class ScalperApp {
         return;
       }
 
-      // Identify the #1 Prime Setup strictly requiring Confluence Score >= 82 and Orderflow >= 56%
+      // Permanent Prime Trade Lock: Check if an active Prime Trade is already locked in cache
       let topPickSymbol = null;
-      const primeCandidates = topSetups.filter(s => 
-        s.status !== 'SL_HIT' && 
-        !s.shouldExit && 
-        (s.score || 0) >= 82 &&
-        (s.dir === 'LONG' ? ((s.orderFlowBuyPct || 50) >= 56) : ((s.orderFlowBuyPct || 50) <= 44))
+      const activePrimeInCache = Object.values(this.memeSignalsCache || {}).find(s => 
+        s.isPrimeTrade && s.status !== 'SL_HIT' && !s.shouldExit && ((now - (s.time || 0)) < 14400000)
       );
-      if (primeCandidates.length > 0) {
-        primeCandidates.sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score;
-          const aOf = a.dir === 'LONG' ? (a.orderFlowBuyPct || 50) : (100 - (a.orderFlowBuyPct || 50));
-          const bOf = b.dir === 'LONG' ? (b.orderFlowBuyPct || 50) : (100 - (b.orderFlowBuyPct || 50));
-          return bOf - aOf;
-        });
-        topPickSymbol = primeCandidates[0].symbol;
+
+      if (activePrimeInCache) {
+        topPickSymbol = activePrimeInCache.symbol;
+      } else {
+        const primeCandidates = topSetups.filter(s => 
+          s.status !== 'SL_HIT' && 
+          !s.shouldExit && 
+          (s.score || 0) >= 85 &&
+          (s.dir === 'LONG' ? ((s.orderFlowBuyPct || 50) >= 60.0) : ((s.orderFlowBuyPct || 50) <= 40.0))
+        );
+        if (primeCandidates.length > 0) {
+          primeCandidates.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            const aOf = a.dir === 'LONG' ? (a.orderFlowBuyPct || 50) : (100 - (a.orderFlowBuyPct || 50));
+            const bOf = b.dir === 'LONG' ? (b.orderFlowBuyPct || 50) : (100 - (b.orderFlowBuyPct || 50));
+            return bOf - aOf;
+          });
+          topPickSymbol = primeCandidates[0].symbol;
+          primeCandidates[0].isPrimeTrade = true;
+          this.memeSignalsCache[topPickSymbol] = primeCandidates[0];
+          this.saveMemeCache();
+        }
       }
 
       // Pin Top Pick setup to position #1 in grid
@@ -5182,7 +5211,7 @@ class ScalperApp {
       topSetups.forEach(item => {
         let card = existingCardsMap[item.symbol];
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
-        const isTopPick = (item.symbol === topPickSymbol) && (item.status !== 'SL_HIT') && (!item.shouldExit);
+        const isTopPick = (item.isPrimeTrade || item.symbol === topPickSymbol) && (item.status !== 'SL_HIT') && (!item.shouldExit);
         const cardScore = Math.min(99, Math.max(50, Math.round(item.score || 85)));
 
         let cardStyle = isTopPick
@@ -5365,6 +5394,7 @@ class ScalperApp {
       this.autoTradingEnabled = enable;
       this.tradingMode = 'PAPER';
       this.updateAutoTradeButton();
+      this.updateModeBadge();
       const modal = document.getElementById('autotrade-modal');
       if (modal) modal.classList.remove('open');
       this.showToast(
@@ -5388,6 +5418,7 @@ class ScalperApp {
       this.autoTradingEnabled = !!(data.status && data.status.autoTradingEnabled);
       this.tradingMode = data.mode || mode;
       this.updateAutoTradeButton();
+      this.updateModeBadge();
 
       const modal = document.getElementById('autotrade-modal');
       if (modal) modal.classList.remove('open');
@@ -5955,7 +5986,8 @@ class ScalperApp {
           stopLoss: signal.sl,
           takeProfit: signal.tp2 || signal.tp1,
           leverage: this.currentLeverage,
-          signal
+          signal,
+          isAutoTrade: true
         })
       });
 
