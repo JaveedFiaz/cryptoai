@@ -4868,7 +4868,7 @@ class ScalperApp {
           const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
           const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
 
-          // 1. Check active trade signal in cache
+          // 1. Check active trade signal in cache (Confirmed Bar SL + 2-Hour Retention)
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
             const curClose = latestBar.close;
@@ -4878,7 +4878,11 @@ class ScalperApp {
             const isTp3Hit = isLong ? (curHigh >= cached.tp3) : (curLow <= cached.tp3);
             const isTp2Hit = isLong ? (curHigh >= cached.tp2) : (curLow <= cached.tp2);
             const isTp1Hit = isLong ? (curHigh >= cached.tp1) : (curLow <= cached.tp1);
-            const isSlHit = isLong ? (curLow <= cached.sl) : (curHigh >= cached.sl);
+
+            // Confirmed Bar SL Check: Require close or confirmed bar breach to avoid 1-second wick noise
+            const isSlHit = isLong 
+              ? (confirmedBar.close <= cached.sl || curClose <= cached.sl)
+              : (confirmedBar.close >= cached.sl || curClose >= cached.sl);
 
             const pnlPct = isLong 
               ? ((curClose - cached.entry) / cached.entry) * 100
@@ -4903,14 +4907,13 @@ class ScalperApp {
             } else if (isTp1Hit) {
               cached.status = 'TP1_HIT';
             } else if (cached.status === 'TP1_HIT' || cached.status === 'TP2_HIT') {
-              // If price retraced below entry after touching TP, update status to active retracement
               if ((isLong && curClose < cached.entry) || (!isLong && curClose > cached.entry)) {
                 cached.status = 'RETRACEMENT';
               }
             }
 
-            // Auto-purge old setup cards after 4 hours or if SL was hit over 10 mins ago
-            if ((cached.status === 'SL_HIT' && (now - (cached.slHitTime || now)) > 600000) || ((now - (cached.time || 0)) > 14400000)) {
+            // Keep completed/SL cards on screen for 2 hours (7200000ms) for 100% UI transparency
+            if ((cached.status === 'SL_HIT' && (now - (cached.slHitTime || now)) > 7200000) || ((now - (cached.time || 0)) > 14400000)) {
               delete this.memeSignalsCache[symbol];
               this.saveMemeCache();
               return null;
@@ -4942,18 +4945,24 @@ class ScalperApp {
           const squeezeRatio = (atr / confirmedBar.close) * 100;
 
           // Pre-Breakout Alert: Volatility Squeeze + Orderflow Imbalance
-          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 60.0 || orderFlowBuyPct <= 40.0 || volRatio >= 1.35);
-          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 60.0);
-          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 40.0);
+          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 62.0 || orderFlowBuyPct <= 38.0 || volRatio >= 1.35);
+          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 62.0);
+          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 38.0);
 
-          // 3. OVER-EXTENSION GUARD
+          // 3. OVER-EXTENSION & RESISTANCE TRAP GUARD
           if (Math.abs(totalMovePct) > 2.5 || Math.abs(singleBarMovePct) > 1.8) {
             return null;
           }
 
-          // 4. Directional Breakout Verification with Strict Taker Orderflow (>= 60.0%) & BTC Alignment
-          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 60.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 65.0);
-          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 40.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 35.0);
+          // Resistance & Support Boundary Check (Never buy exact local peaks or sell local bottoms)
+          const prev20High = Math.max(...candles.slice(-22, -2).map(c => c.high));
+          const prev20Low = Math.min(...candles.slice(-22, -2).map(c => c.low));
+          const distToHigh20 = Math.abs(confirmedBar.close - prev20High) / prev20High * 100;
+          const distToLow20 = Math.abs(confirmedBar.close - prev20Low) / prev20Low * 100;
+
+          // 4. Directional Breakout Verification with Institutional Taker Orderflow (>= 62.0%) & BTC Alignment
+          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 62.0) && (distToHigh20 > 0.15) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 68.0);
+          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 38.0) && (distToLow20 > 0.15) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 32.0);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
@@ -4995,19 +5004,19 @@ class ScalperApp {
 
           if (!isVwapAligned) return null; // Reject counter-VWAP trades into institutional resistance
 
-          if (isBullish && rsi > 68) return null; // Overbought guard
-          if (isBearish && rsi < 32) return null; // Oversold guard
+          if (isBullish && rsi > 65) return null; // Overbought guard (prevent buying tops)
+          if (isBearish && rsi < 35) return null; // Oversold guard (prevent selling bottoms)
 
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
           if (bodyRatio < 0.45) return null; // Reject thin doji traps (require decisive body)
 
-          // 6. Deep 35% Pullback Entry & Expanded 2.8x ATR Stop Loss Protection
+          // 6. Deep 35% Pullback Entry & Expanded 3.0x ATR Stop Loss Protection
           const candleRange = confirmedBar.high - confirmedBar.low;
           const entry = (dir === 'LONG') 
             ? confirmedBar.close - (candleRange * 0.35)
             : confirmedBar.close + (candleRange * 0.35);
 
-          const sl = (dir === 'SHORT') ? entry + (atr * 2.8) : entry - (atr * 2.8);
+          const sl = (dir === 'SHORT') ? entry + (atr * 3.0) : entry - (atr * 3.0);
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
           const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
@@ -5107,12 +5116,11 @@ class ScalperApp {
         }
       }));
 
-      // Gather ALL active & completed setups across ALL categories to GUARANTEE trades NEVER vanish
+      // Gather ALL active & completed setups across ALL categories (2-Hour SL retention) so cards NEVER vanish
       const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
         if (!sig) return false;
-        // Keep SL_HIT cards on screen for 30 minutes for audit & transparency
         if (sig.status === 'SL_HIT') {
-          return (now - (sig.slHitTime || now)) < 1800000;
+          return (now - (sig.slHitTime || now)) < 7200000;
         }
         return (now - (sig.time || 0)) < 14400000;
       });
