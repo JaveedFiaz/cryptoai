@@ -4951,12 +4951,24 @@ class ScalperApp {
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
 
-          // 5. 6-PILLAR CONFLUENCE FILTERING (EMA + VWAP Alignment)
+          // 5. 6-PILLAR CONFLUENCE FILTERING (15m HTF + 5m EMA + VWAP Alignment)
           const isEmaAligned = isBullish 
             ? (ema20 && ema50 && confirmedBar.close > ema20)
             : (ema20 && ema50 && confirmedBar.close < ema20);
 
           if (!isEmaAligned) return null; // Reject counter-trend fakeouts
+
+          // 15m HTF Trend Alignment
+          const closes15m = [];
+          for (let i = 2; i < candles.length; i += 3) {
+            closes15m.push(candles[i].close);
+          }
+          const ema15m20 = this.calcEMA(closes15m, 20);
+          const isHtfAligned = isBullish
+            ? (!ema15m20 || confirmedBar.close >= ema15m20)
+            : (!ema15m20 || confirmedBar.close <= ema15m20);
+
+          if (!isHtfAligned) return null; // Reject trades against 15m HTF trend
 
           const isVwapAligned = isBullish
             ? (confirmedBar.close >= currentVwap)
@@ -4970,12 +4982,13 @@ class ScalperApp {
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
           if (bodyRatio < 0.20) return null; // Reject thin doji traps
 
-          // 6. Entry & ATR SL Buffer (1.5x ATR)
+          // 6. Pullback Discount Entry & Expanded 2.2x ATR Stop Loss
+          const candleRange = confirmedBar.high - confirmedBar.low;
           const entry = (dir === 'LONG') 
-            ? Math.min(confirmedBar.close, confirmedBar.open + (confirmedBar.high - confirmedBar.open) * 0.35)
-            : Math.max(confirmedBar.close, confirmedBar.open - (confirmedBar.open - confirmedBar.low) * 0.35);
+            ? confirmedBar.close - (candleRange * 0.25)
+            : confirmedBar.close + (candleRange * 0.25);
 
-          const sl = (dir === 'SHORT') ? entry + (atr * 1.5) : entry - (atr * 1.5);
+          const sl = (dir === 'SHORT') ? entry + (atr * 2.2) : entry - (atr * 2.2);
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
           const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
@@ -4994,7 +5007,8 @@ class ScalperApp {
           else if (volRatio >= 1.5) score += 10;
           else if (volRatio >= 1.0) score += 5;
 
-          if (isEmaAligned) score += 15;
+          if (isEmaAligned) score += 10;
+          if (isHtfAligned) score += 10;
           if (isVwapAligned) score += 10;
           if ((isBullish && rsi >= 45 && rsi <= 65) || (isBearish && rsi >= 35 && rsi <= 55)) score += 10;
           if (bodyRatio >= 0.55) score += 10;
@@ -5070,15 +5084,34 @@ class ScalperApp {
         }
       }));
 
-      // Sort active setups by Creation Time (newest first)
-      const sortedSetups = results.filter(Boolean).sort((a, b) => {
+      // Gather live active cached setups to guarantee active trades NEVER vanish while alive
+      const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
+        if (!sig || sig.status === 'SL_HIT' || sig.shouldExit) return false;
+        if ((now - (sig.time || 0)) > 14400000) return false;
+        return targetSymbols.includes(sig.symbol);
+      });
+
+      const newlyFound = results.filter(Boolean);
+      const setupMap = {};
+      // Active live trades in progress take top priority
+      liveCachedSetups.forEach(sig => { setupMap[sig.symbol] = sig; });
+      newlyFound.forEach(sig => {
+        if (!setupMap[sig.symbol]) {
+          setupMap[sig.symbol] = sig;
+        }
+      });
+      const mergedSetups = Object.values(setupMap);
+
+      mergedSetups.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         const aOf = a.dir === 'LONG' ? (a.orderFlowBuyPct || 50) : (100 - (a.orderFlowBuyPct || 50));
         const bOf = b.dir === 'LONG' ? (b.orderFlowBuyPct || 50) : (100 - (b.orderFlowBuyPct || 50));
         if (bOf !== aOf) return bOf - aOf;
         return (b.volRatio || 1) - (a.volRatio || 1);
       });
-      const topSetups = sortedSetups.slice(0, 4);
+
+      // Show all live active trades + best candidates (up to 6 cards max)
+      let topSetups = mergedSetups.slice(0, 6);
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) {
@@ -5093,18 +5126,22 @@ class ScalperApp {
         return;
       }
 
-      // Identify the #1 Prime Setup among active non-SL setups based on score & orderflow quality
+      // Identify the #1 Prime Setup strictly requiring Confluence Score >= 82 and Orderflow >= 56%
       let topPickSymbol = null;
-      const activeSetups = topSetups.filter(s => s.status !== 'SL_HIT' && !s.shouldExit);
-      if (activeSetups.length > 0) {
-        const ranked = [...activeSetups].sort((a, b) => {
+      const primeCandidates = topSetups.filter(s => 
+        s.status !== 'SL_HIT' && 
+        !s.shouldExit && 
+        (s.score || 0) >= 82 &&
+        (s.dir === 'LONG' ? ((s.orderFlowBuyPct || 50) >= 56) : ((s.orderFlowBuyPct || 50) <= 44))
+      );
+      if (primeCandidates.length > 0) {
+        primeCandidates.sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
           const aOf = a.dir === 'LONG' ? (a.orderFlowBuyPct || 50) : (100 - (a.orderFlowBuyPct || 50));
           const bOf = b.dir === 'LONG' ? (b.orderFlowBuyPct || 50) : (100 - (b.orderFlowBuyPct || 50));
-          if (bOf !== aOf) return bOf - aOf;
-          return (b.volRatio || 1) - (a.volRatio || 1);
+          return bOf - aOf;
         });
-        topPickSymbol = ranked[0].symbol;
+        topPickSymbol = primeCandidates[0].symbol;
       }
 
       // Pin Top Pick setup to position #1 in grid
