@@ -4673,10 +4673,68 @@ class ScalperApp {
     const refreshBtn = document.getElementById('memecoin-refresh-btn');
     const statusPill = document.getElementById('memecoin-status');
 
-    // Category Pills DOM Binding
+    // Engine Mode & Category Pills DOM Binding
+    const sniperModeBtn = document.getElementById('engine-mode-sniper');
+    const momentumModeBtn = document.getElementById('engine-mode-momentum');
+    const bigMovesModeBtn = document.getElementById('engine-mode-bigmoves');
+
     const memeBtn = document.getElementById('cat-btn-memecoins');
     const highCapBtn = document.getElementById('cat-btn-highcap');
     const bigMovesBtn = document.getElementById('cat-btn-bigmoves');
+
+    if (!this.activeEngineMode) {
+      try {
+        this.activeEngineMode = (typeof localStorage !== 'undefined' && localStorage.getItem('crypto_scalper_engine_mode')) || 'momentum';
+      } catch (e) {
+        this.activeEngineMode = 'momentum';
+      }
+    }
+
+    const setEngineMode = (mode) => {
+      this.activeEngineMode = mode;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('crypto_scalper_engine_mode', mode);
+        }
+      } catch (e) {}
+      if (mode === 'bigmoves') {
+        this.activeMemeCategory = 'bigmoves';
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('crypto_scalper_active_category', 'bigmoves');
+          }
+        } catch (e) {}
+      }
+      this.refreshMemeCoinTracker();
+    };
+
+    const activeModeStyle = "background:linear-gradient(135deg, rgba(0, 230, 118, 0.22), rgba(0, 210, 255, 0.22)); border:1.5px solid #00d2ff; color:#fff; font-weight:800; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:11px; box-shadow:0 0 12px rgba(0,210,255,0.3); display:inline-flex; align-items:center; gap:4px;";
+    const inactiveModeStyle = "background:rgba(22, 27, 34, 0.85); border:1px solid rgba(255, 255, 255, 0.12); color:#c9d1d9; font-weight:700; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:11px; display:inline-flex; align-items:center; gap:4px;";
+
+    if (sniperModeBtn) {
+      sniperModeBtn.classList.toggle('active', this.activeEngineMode === 'sniper');
+      sniperModeBtn.setAttribute('style', this.activeEngineMode === 'sniper' ? activeModeStyle : inactiveModeStyle);
+      if (!sniperModeBtn.dataset.bound) {
+        sniperModeBtn.dataset.bound = 'true';
+        sniperModeBtn.addEventListener('click', () => setEngineMode('sniper'));
+      }
+    }
+    if (momentumModeBtn) {
+      momentumModeBtn.classList.toggle('active', this.activeEngineMode === 'momentum');
+      momentumModeBtn.setAttribute('style', this.activeEngineMode === 'momentum' ? activeModeStyle : inactiveModeStyle);
+      if (!momentumModeBtn.dataset.bound) {
+        momentumModeBtn.dataset.bound = 'true';
+        momentumModeBtn.addEventListener('click', () => setEngineMode('momentum'));
+      }
+    }
+    if (bigMovesModeBtn) {
+      bigMovesModeBtn.classList.toggle('active', this.activeEngineMode === 'bigmoves');
+      bigMovesModeBtn.setAttribute('style', this.activeEngineMode === 'bigmoves' ? activeModeStyle : inactiveModeStyle);
+      if (!bigMovesModeBtn.dataset.bound) {
+        bigMovesModeBtn.dataset.bound = 'true';
+        bigMovesModeBtn.addEventListener('click', () => setEngineMode('bigmoves'));
+      }
+    }
 
     if (!this.activeMemeCategory) {
       try {
@@ -4863,6 +4921,24 @@ class ScalperApp {
           const takerSellVol = Math.max(0.0001, confirmedBar.volume - takerBuyVol);
           const orderFlowBuyPct = confirmedBar.volume > 0 ? (takerBuyVol / confirmedBar.volume) * 100 : 50;
           const orderFlowRatio = takerSellVol > 0 ? (takerBuyVol / takerSellVol) : 1.0;
+
+          // Open Interest (OI) Trend Analysis
+          let oiChangePct = 0;
+          let oiValueUSD = 0;
+          try {
+            const oiRes = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${symbol}&period=5m&limit=4`);
+            if (oiRes.ok) {
+              const oiData = await oiRes.json();
+              if (Array.isArray(oiData) && oiData.length >= 2) {
+                const latestOi = parseFloat(oiData[oiData.length - 1].sumOpenInterest || 0);
+                const prevOi = parseFloat(oiData[0].sumOpenInterest || 0);
+                oiValueUSD = parseFloat(oiData[oiData.length - 1].sumOpenInterestValue || 0);
+                if (prevOi > 0) {
+                  oiChangePct = ((latestOi - prevOi) / prevOi) * 100;
+                }
+              }
+            }
+          } catch (e) {}
 
           const refBar = candles[candles.length - 6];
           const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
@@ -5085,6 +5161,8 @@ class ScalperApp {
             volRatio,
             orderFlowBuyPct,
             orderFlowRatio,
+            oiChangePct,
+            oiValueUSD,
             dir,
             entry,
             sl,
@@ -5319,36 +5397,87 @@ class ScalperApp {
         const buyPctVal = item.orderFlowBuyPct || 50;
         const ratioVal = item.orderFlowRatio || 1.0;
 
-        const cardInnerHtml = `
-          ${topPickBannerHtml}
-          <div class="setup-card-header">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
-              <span style="font-size:12px; font-weight:700; color:${item.changePct >= 0 ? '#00e676' : '#ff3b30'};">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</span>
+        let cardContentHtml = '';
+
+        // If in Pre-Breakout Big Moves category, output pure Probability & Whale Metrics (No Entry/SL/TP boxes!)
+        if (this.activeMemeCategory === 'bigmoves' || item.category === 'bigmoves') {
+          const oiPct = item.oiChangePct || 0;
+          const oiStatus = oiPct >= 0 ? `🟢 ACCUMULATION (+${oiPct.toFixed(1)}% OI Spiked)` : `🔴 DISTRIBUTION (${oiPct.toFixed(1)}% OI Drop)`;
+          
+          cardContentHtml = `
+            ${topPickBannerHtml}
+            <div class="setup-card-header">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
+                <span style="font-size:12px; font-weight:700; color:${item.changePct >= 0 ? '#00e676' : '#ff3b30'};">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</span>
+              </div>
+              ${whaleBadge}
             </div>
-            ${whaleBadge}
-          </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
-            <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
-            <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">$${fmtVal(item.price)}</span>
-          </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px 8px; border-radius:6px; margin:6px 0; font-size:11px;">
-            <span style="color:var(--text-muted);">🐋 Taker Orderflow:</span>
-            <strong style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">
-              ${buyPctVal >= 50 ? '🟢' : '🔴'} ${buyPctVal.toFixed(0)}% Buy / ${(100 - buyPctVal).toFixed(0)}% Sell (${ratioVal.toFixed(1)}x)
-            </strong>
-          </div>
-          ${exitAdvisoryHtml}
-          <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;">
-            <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">$${fmtVal(item.sl)}</b></div>
-            <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">$${fmtVal(item.tp1)}</b></div>
-            <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">$${fmtVal(item.tp2)}</b></div>
-            <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">$${fmtVal(item.tp3)}</b></div>
-          </div>
-          <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
-            ${isTopPick ? '🚀 EXECUTE #1 PRIME TRADE' : '⚡ View Chart & Signal'}
-          </button>
-        `;
+            
+            <div class="bigmoves-radar-box" style="background:rgba(0, 242, 254, 0.05); border:1.5px solid rgba(0, 242, 254, 0.35); border-radius:8px; padding:12px; margin:10px 0; font-size:11.5px; backdrop-filter:blur(8px);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
+                <span style="color:#00f2fe; font-weight:800; letter-spacing:0.5px;">🚀 BREAKOUT PROBABILITY SCORE:</span>
+                <strong style="color:#ffd700; font-size:13px; font-weight:900; background:rgba(255,215,0,0.15); padding:2px 8px; border-radius:4px; border:1px solid #ffd700;">⚡ ${cardScore}% CHANCE (${cardScore}/100)</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin:5px 0;">
+                <span style="color:var(--text-muted);">🐋 Whale Involvement (OI):</span>
+                <b style="color:${oiPct >= 0 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${oiStatus}</b>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin:5px 0;">
+                <span style="color:var(--text-muted);">🌊 Taker Buy/Sell Sweeps:</span>
+                <b style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${buyPctVal.toFixed(0)}% Buy Sweeps (${ratioVal.toFixed(1)}x Ratio)</b>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin:5px 0;">
+                <span style="color:var(--text-muted);">🔥 Squeeze Volatility Range:</span>
+                <b style="color:#00f2fe; font-family:var(--font-mono);">${(item.squeezeRatio || 0.45).toFixed(2)}% (Tight Compression Range)</b>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin:5px 0;">
+                <span style="color:var(--text-muted);">🎯 Liquidation Sweep Target:</span>
+                <b style="color:#ffd700; font-family:var(--font-mono);">${item.dir === 'LONG' ? 'Short Liquidation Sweep Above' : 'Long Liquidation Sweep Below'} ${fmtVal(item.price * (item.dir === 'LONG' ? 1.08 : 0.92))}</b>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin:5px 0;">
+                <span style="color:var(--text-muted);">📈 Projected Expansion:</span>
+                <b style="color:#00e676; font-family:var(--font-mono);">${item.projectedMove || 'Target +150% to +800%'}</b>
+              </div>
+            </div>
+
+            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:40px; font-weight:800; background:linear-gradient(135deg, #00f2fe, #4facfe); border:none; color:#000; cursor:pointer; border-radius:6px; font-size:12px; box-shadow:0 0 12px rgba(0,242,254,0.3);">
+              🚀 View Live Whale Orderflow & Chart
+            </button>
+          `;
+        } else {
+          cardContentHtml = `
+            ${topPickBannerHtml}
+            <div class="setup-card-header">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
+                <span style="font-size:12px; font-weight:700; color:${item.changePct >= 0 ? '#00e676' : '#ff3b30'};">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</span>
+              </div>
+              ${whaleBadge}
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
+              <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
+              <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">${fmtVal(item.price)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px 8px; border-radius:6px; margin:6px 0; font-size:11px;">
+              <span style="color:var(--text-muted);">🐋 Taker Orderflow:</span>
+              <strong style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">
+                ${buyPctVal >= 50 ? '🟢' : '🔴'} ${buyPctVal.toFixed(0)}% Buy / ${(100 - buyPctVal).toFixed(0)}% Sell (${ratioVal.toFixed(1)}x)
+              </strong>
+            </div>
+            ${exitAdvisoryHtml}
+            <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;">
+              <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">${fmtVal(item.sl)}</b></div>
+              <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">${fmtVal(item.tp1)}</b></div>
+              <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">${fmtVal(item.tp2)}</b></div>
+              <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
+            </div>
+            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
+              ${isTopPick ? '🚀 EXECUTE #1 PRIME TRADE' : '⚡ View Chart & Signal'}
+            </button>
+          `;
+        }
+        const cardInnerHtml = cardContentHtml;
 
         const renderKey = `${cardStyle}|${cardInnerHtml}`;
         if (card) {
