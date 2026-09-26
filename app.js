@@ -4831,7 +4831,7 @@ class ScalperApp {
     try {
       const results = await Promise.all(targetSymbols.map(async (symbol) => {
         try {
-          const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=5m&limit=60`);
+          const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=5m&limit=100`);
           if (!res.ok) return null;
           const klines = await res.json();
           if (!Array.isArray(klines) || klines.length < 30) return null;
@@ -4921,6 +4921,7 @@ class ScalperApp {
           const closes = candles.map(c => c.close);
           const ema20 = this.calcEMA(closes, 20);
           const ema50 = this.calcEMA(closes, 50);
+          const ema100 = this.calcEMA(closes, 100);
           const rsi = this.calcRSI(closes, 14);
 
           // Intraday Session VWAP Calculation
@@ -4935,7 +4936,7 @@ class ScalperApp {
           const squeezeRatio = (atr / confirmedBar.close) * 100;
 
           // Pre-Breakout Alert: Volatility Squeeze + Orderflow Imbalance
-          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 58 || orderFlowBuyPct <= 42 || volRatio >= 1.15);
+          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 58 || orderFlowBuyPct <= 42 || volRatio >= 1.25);
           const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 58);
           const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 42);
 
@@ -4944,17 +4945,17 @@ class ScalperApp {
             return null;
           }
 
-          // 4. Directional Breakout Verification with Orderflow & BTC Alignment
-          const isBullish = (volRatio >= 0.85 || isBigMoveBrewing || orderFlowBuyPct >= 55) && (totalMovePct >= 0.01) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 48.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 58);
-          const isBearish = (volRatio >= 0.85 || isBigMoveBrewing || orderFlowBuyPct <= 45) && (totalMovePct <= -0.01) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 52.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 42);
+          // 4. Directional Breakout Verification with Strict Taker Orderflow & BTC Alignment
+          const isBullish = (volRatio >= 1.15 || isBigMoveBrewing) && (totalMovePct >= 0.10) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 56.0) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 62.0);
+          const isBearish = (volRatio >= 1.15 || isBigMoveBrewing) && (totalMovePct <= -0.10) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 44.0) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 38.0);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
 
-          // 5. 6-PILLAR CONFLUENCE FILTERING (15m HTF + 5m EMA + VWAP Alignment)
+          // 5. 6-PILLAR CONFLUENCE FILTERING (Triple EMA Stack + 15m HTF + VWAP Alignment)
           const isEmaAligned = isBullish 
-            ? (ema20 && ema50 && confirmedBar.close > ema20)
-            : (ema20 && ema50 && confirmedBar.close < ema20);
+            ? (ema20 && ema50 && confirmedBar.close > ema20 && ema20 > ema50 && (!ema100 || confirmedBar.close > ema100))
+            : (ema20 && ema50 && confirmedBar.close < ema20 && ema20 < ema50 && (!ema100 || confirmedBar.close < ema100));
 
           if (!isEmaAligned) return null; // Reject counter-trend fakeouts
 
@@ -4976,19 +4977,19 @@ class ScalperApp {
 
           if (!isVwapAligned) return null; // Reject counter-VWAP trades into institutional resistance
 
-          if (isBullish && rsi > 72) return null; // Overbought guard
-          if (isBearish && rsi < 28) return null; // Oversold guard
+          if (isBullish && rsi > 70) return null; // Overbought guard
+          if (isBearish && rsi < 30) return null; // Oversold guard
 
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
-          if (bodyRatio < 0.20) return null; // Reject thin doji traps
+          if (bodyRatio < 0.40) return null; // Reject thin doji traps (require decisive body)
 
-          // 6. Pullback Discount Entry & Expanded 2.2x ATR Stop Loss
+          // 6. Deep Pullback Entry & Expanded 2.5x ATR Stop Loss Protection
           const candleRange = confirmedBar.high - confirmedBar.low;
           const entry = (dir === 'LONG') 
-            ? confirmedBar.close - (candleRange * 0.25)
-            : confirmedBar.close + (candleRange * 0.25);
+            ? confirmedBar.close - (candleRange * 0.30)
+            : confirmedBar.close + (candleRange * 0.30);
 
-          const sl = (dir === 'SHORT') ? entry + (atr * 2.2) : entry - (atr * 2.2);
+          const sl = (dir === 'SHORT') ? entry + (atr * 2.5) : entry - (atr * 2.5);
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
           const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
@@ -5007,7 +5008,7 @@ class ScalperApp {
           else if (volRatio >= 1.5) score += 10;
           else if (volRatio >= 1.0) score += 5;
 
-          if (isEmaAligned) score += 10;
+          if (isEmaAligned) score += 12;
           if (isHtfAligned) score += 10;
           if (isVwapAligned) score += 10;
           if ((isBullish && rsi >= 45 && rsi <= 65) || (isBearish && rsi >= 35 && rsi <= 55)) score += 10;
@@ -5015,8 +5016,8 @@ class ScalperApp {
           if (isBigMoveBrewing) score += 10;
 
           // Orderflow score boost
-          if (isBullish && orderFlowBuyPct >= 56) score += 12;
-          if (isBearish && orderFlowBuyPct <= 44) score += 12;
+          if (isBullish && orderFlowBuyPct >= 58) score += 15;
+          if (isBearish && orderFlowBuyPct <= 42) score += 15;
 
           // Blend with ScalperEngine score if available
           if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL')) {
@@ -5024,6 +5025,9 @@ class ScalperApp {
           }
 
           score = Math.min(99, Math.max(50, Math.round(score)));
+
+          // Strict Confluence Cutoff Gate: Only emit high-conviction trades (score >= 82)
+          if (score < 82) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
           const t24 = tickerMap24h[symbol] || { change24h: 0, volume24h: 0 };
@@ -5084,9 +5088,13 @@ class ScalperApp {
         }
       }));
 
-      // Gather live active cached setups to guarantee active trades NEVER vanish while alive
+      // Gather live active & completed setups (including SL_HIT cards for 30 mins) to GUARANTEE trades NEVER vanish
       const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
-        if (!sig || sig.status === 'SL_HIT' || sig.shouldExit) return false;
+        if (!sig) return false;
+        // Keep SL_HIT cards on screen for 30 minutes for audit & transparency
+        if (sig.status === 'SL_HIT') {
+          return (now - (sig.slHitTime || now)) < 1800000;
+        }
         if ((now - (sig.time || 0)) > 14400000) return false;
         return targetSymbols.includes(sig.symbol);
       });
