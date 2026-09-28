@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crypto Scalper Pro [v7] - MEXC Real-Time Trading Terminal</title>
-  <link rel="stylesheet" href="styles.css?v=12.4.0">
+  <link rel="stylesheet" href="styles.css?v=13.3.0">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -108,77 +108,80 @@
   <nav class="terminal-subnav">
     <button class="subnav-tab active" data-tab="terminal">🎯 CONFIDENT PRIME TRADES</button>
     <button class="subnav-tab" data-tab="memecoins">🚀 HIGH-ROI WHALE GAINERS</button>
+    <button class="subnav-tab" data-tab="chart">📊 LIVE CHART &amp; TERMINAL</button>
   </nav>
 
   <!-- ========================================================================
-       HERO ACTIVE TRADE SIGNAL BANNER (CLEAR & INSTANT READ)
+       TAB PANE 1: CONFIDENT PRIME TRADES (STANDALONE FEED)
        ======================================================================== -->
-  <div id="hero-signal-bar" class="hero-signal-bar neutral">
-    <div class="hero-signal-left">
-      <div class="hero-status-pulse" id="hero-pulse"></div>
-      <div class="hero-signal-badge" id="hero-badge">⚪ SCANNING</div>
-      <div class="hero-signal-pair" id="hero-pair">BTCUSDT [1m]</div>
-      <div class="hero-signal-summary" id="hero-summary">Analyzing live orderflow &amp; institutional market structure...</div>
-      <div class="hero-reasons-container" id="hero-reasons-box">
-        <span class="reasons-pill" id="hero-reasons-pill">Scanning for 100-point confluence setups...</span>
+  <div id="tab-terminal" class="tab-pane active" style="padding:16px; flex-direction:column; overflow-y:auto;">
+    <div class="panel-header-bar">
+      <div class="panel-title-group">
+        <span class="panel-main-title">🎯 CONFIDENT PRIME TRADES (90%+ ACCURACY)</span>
+        <span class="panel-subtitle">Sniper precision 1-3 trades per day with verified 90%+ confluence score, SL, TP1-3 &amp; live price tracking</span>
+      </div>
+      <div class="panel-actions">
+        <span class="status-pill online">⚡ AUTOMATIC SNIPER SCANNER</span>
       </div>
     </div>
-    <div class="hero-signal-right" id="hero-levels">
-      <div class="hero-score-100-box" title="100-Point Quantitative Confluence Score">
-        <span class="score-100-num" id="hero-score100">--</span>
-        <span class="score-100-denom">/100</span>
-      </div>
-      <div class="hero-level-chip entry">
-        <span class="chip-label">ENTRY</span>
-        <span class="chip-val" id="hero-entry">---</span>
-      </div>
-      <div class="hero-level-chip sl">
-        <span class="chip-label">STOP LOSS</span>
-        <span class="chip-val" id="hero-sl">---</span>
-      </div>
-      <div class="hero-level-chip tp">
-        <span class="chip-label">TP1 (1R)</span>
-        <span class="chip-val" id="hero-tp1">---</span>
-      </div>
-      <div class="hero-level-chip tp">
-        <span class="chip-label">TP2 (2R)</span>
-        <span class="chip-val" id="hero-tp2">---</span>
-      </div>
-      <div class="hero-level-chip tp">
-        <span class="chip-label">TP3 (3R)</span>
-        <span class="chip-val" id="hero-tp3">---</span>
-      </div>
-      <div class="hero-level-chip score">
-        <span class="chip-label">CONVICTION</span>
-        <span class="chip-val" id="hero-score">---</span>
-      </div>
-      <div class="hero-level-chip rr">
-        <span class="chip-label">R:R</span>
-        <span class="chip-val" id="hero-rr">1:2.0</span>
-      </div>
-      <div class="hero-share-actions">
-        <button id="hero-share-tg-btn" class="hero-share-btn tg" title="Forward Active Signal to Telegram">✈️ TG</button>
-        <button id="hero-share-wa-btn" class="hero-share-btn wa" title="Forward Active Signal to WhatsApp">💬 WA</button>
-      </div>
+
+    <div class="scanner-cards-grid" id="memecoin-cards-container">
+      <div class="loading-state-box">Scanning for highest confluence Prime Trades &amp; Orderflow Sweeps...</div>
     </div>
   </div>
 
   <!-- ========================================================================
-       TAB PANE 1: TERMINAL & CHART
+       TAB PANE 3: LIVE CHART & TERMINAL WORKSPACE
        ======================================================================== -->
-  <div id="tab-terminal" class="tab-pane active" style="flex-direction:column;">
-    <!-- TOP SECTION: CONFIDENT PRIME TRADES FEED & CARDS -->
-    <div class="prime-trades-section" style="padding:12px 14px 8px 14px; background:rgba(13, 17, 23, 0.95); border-bottom:1px solid rgba(255,255,255,0.08);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <div style="font-size:13px; font-weight:900; color:#ffd700; display:flex; align-items:center; gap:6px; letter-spacing:0.5px;">
-          🎯 CONFIDENT PRIME TRADES (90%+ ACCURACY)
+  <div id="tab-chart" class="tab-pane hidden-workspace-tab" style="flex-direction:column;">
+    <!-- HERO ACTIVE TRADE SIGNAL BANNER (CLEAR & INSTANT READ) -->
+    <div id="hero-signal-bar" class="hero-signal-bar neutral">
+      <div class="hero-signal-left">
+        <div class="hero-status-pulse" id="hero-pulse"></div>
+        <div class="hero-signal-badge" id="hero-badge">⚪ SCANNING</div>
+        <div class="hero-signal-pair" id="hero-pair">BTCUSDT [1m]</div>
+        <div class="hero-signal-summary" id="hero-summary">Analyzing live orderflow &amp; institutional market structure...</div>
+        <div class="hero-reasons-container" id="hero-reasons-box">
+          <span class="reasons-pill" id="hero-reasons-pill">Scanning for 100-point confluence setups...</span>
         </div>
-        <span style="font-size:11px; font-weight:700; color:var(--color-cyan); background:rgba(0,210,255,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(0,210,255,0.3);">
-          ⚡ AUTOMATIC SNIPER SCANNER
-        </span>
       </div>
-      <div class="scanner-cards-grid" id="memecoin-cards-container">
-        <div class="loading-state-box">Scanning for highest confluence Prime Trades &amp; Orderflow Sweeps...</div>
+      <div class="hero-signal-right" id="hero-levels">
+        <div class="hero-score-100-box" title="100-Point Quantitative Confluence Score">
+          <span class="score-100-num" id="hero-score100">--</span>
+          <span class="score-100-denom">/100</span>
+        </div>
+        <div class="hero-level-chip entry">
+          <span class="chip-label">ENTRY</span>
+          <span class="chip-val" id="hero-entry">---</span>
+        </div>
+        <div class="hero-level-chip sl">
+          <span class="chip-label">STOP LOSS</span>
+          <span class="chip-val" id="hero-sl">---</span>
+        </div>
+        <div class="hero-level-chip tp">
+          <span class="chip-label">TP1 (1R)</span>
+          <span class="chip-val" id="hero-tp1">---</span>
+        </div>
+        <div class="hero-level-chip tp">
+          <span class="chip-label">TP2 (2R)</span>
+          <span class="chip-val" id="hero-tp2">---</span>
+        </div>
+        <div class="hero-level-chip tp">
+          <span class="chip-label">TP3 (3R)</span>
+          <span class="chip-val" id="hero-tp3">---</span>
+        </div>
+        <div class="hero-level-chip score">
+          <span class="chip-label">CONVICTION</span>
+          <span class="chip-val" id="hero-score">---</span>
+        </div>
+        <div class="hero-level-chip rr">
+          <span class="chip-label">R:R</span>
+          <span class="chip-val" id="hero-rr">1:2.0</span>
+        </div>
+        <div class="hero-share-actions">
+          <button id="hero-share-tg-btn" class="hero-share-btn tg" title="Forward Active Signal to Telegram">✈️ TG</button>
+          <button id="hero-share-wa-btn" class="hero-share-btn wa" title="Forward Active Signal to WhatsApp">💬 WA</button>
+        </div>
       </div>
     </div>
 
@@ -572,7 +575,7 @@
       </div>
     </div>
   </section>
-  </div> <!-- /tab-terminal -->
+  </div> <!-- /tab-chart -->
 
   <!-- ========================================================================
        TAB PANE 2: INSTITUTIONAL WHALE RADAR & ORDERFLOW SCANNER
@@ -1054,7 +1057,7 @@
   <script src="clientTradingEngine.js?v=10.3.0"></script>
   <script src="alertService.js?v=10.3.0"></script>
   <script src="engine.js?v=10.3.0"></script>
-  <script src="app.js?v=13.2.0"></script>
+  <script src="app.js?v=13.3.0"></script>
 
 
 

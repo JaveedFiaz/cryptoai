@@ -788,11 +788,11 @@ class ScalperApp {
     document.body.classList.add(`mobile-tab-${tab}`);
 
     if (tab === 'chart') {
-      this.switchSubnavTab('terminal');
+      this.switchSubnavTab('chart');
     } else if (tab === 'memecoins') {
       this.switchSubnavTab('memecoins');
     } else if (tab === 'signals') {
-      this.switchSubnavTab('terminal');
+      this.switchSubnavTab('chart');
       const sigTabBtn = document.querySelector('.tab-btn[data-tab="tab-signals"]');
       if (sigTabBtn) sigTabBtn.click();
     } else if (tab === 'scanner') {
@@ -2668,7 +2668,7 @@ class ScalperApp {
     await this.switchTimeframe(targetTf);
 
     // 2. Open Chart View Pane & Mobile Chart tab
-    this.switchSubnavTab('terminal');
+    this.switchSubnavTab('chart');
     this.switchMobileTab('chart');
 
     // 3. Render Risk/Reward Box & Hero Banner
@@ -4713,6 +4713,7 @@ class ScalperApp {
 
     const tabTerminal = document.getElementById('tab-terminal');
     const tabMeme = document.getElementById('tab-memecoins');
+    const tabChart = document.getElementById('tab-chart');
     const tabScanner = document.getElementById('tab-scanner');
     const tabAnalytics = document.getElementById('tab-analytics');
     const tabBacktest = document.getElementById('tab-backtest');
@@ -4720,6 +4721,7 @@ class ScalperApp {
     const tabMap = {
       terminal: tabTerminal,
       memecoins: tabMeme,
+      chart: tabChart,
       scanner: tabScanner,
       analytics: tabAnalytics,
       backtest: tabBacktest
@@ -4729,9 +4731,9 @@ class ScalperApp {
       if (!el) return;
       const isActive = (tabId === id);
       el.classList.toggle('active', isActive);
-      if (id === 'terminal') {
+      if (id === 'chart') {
         el.classList.toggle('hidden-workspace-tab', !isActive);
-        el.style.display = 'flex';
+        el.style.display = isActive ? 'flex' : 'none';
       } else {
         el.style.display = isActive ? 'flex' : 'none';
       }
@@ -4742,7 +4744,7 @@ class ScalperApp {
       this.memeScanInterval = null;
     }
 
-    if (tabId === 'terminal') {
+    if (tabId === 'chart') {
       if (this.chart) {
         const container = document.getElementById('chart-container');
         if (container) {
@@ -4750,7 +4752,10 @@ class ScalperApp {
           this.chart.timeScale().scrollToRealTime();
         }
       }
-    } else if (tabId === 'memecoins') {
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+    } else if (tabId === 'memecoins' || tabId === 'terminal') {
       this.refreshMemeCoinTracker();
       this.memeScanInterval = setInterval(() => this.refreshMemeCoinTracker(true), 15000);
     } else if (tabId === 'scanner') {

@@ -531,7 +531,8 @@ body {
   overflow: hidden;
 }
 
-#tab-terminal {
+#tab-terminal,
+#tab-chart {
   display: flex;
   flex-direction: column;
   flex: 1 1 0%;
@@ -2815,7 +2816,8 @@ body {
     display: none !important;
   }
 
-  #tab-terminal.tab-pane.active {
+  #tab-terminal.tab-pane.active,
+  #tab-chart.tab-pane.active {
     position: fixed !important;
     top: 42px !important;
     left: 0 !important;
