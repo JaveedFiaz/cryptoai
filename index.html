@@ -589,30 +589,8 @@
       </div>
     </div>
     
-    <!-- Signal Engine Mode Switcher Bar (Option A Overhaul) -->
-    <div class="signal-engine-mode-bar" style="display:flex; gap:10px; margin-bottom:14px; align-items:center; flex-wrap:wrap; background:rgba(15, 22, 35, 0.85); padding:10px 14px; border-radius:10px; border:1px solid rgba(0, 210, 255, 0.25); backdrop-filter:blur(10px);">
-      <span style="font-size:11px; font-weight:800; color:var(--color-cyan); text-transform:uppercase; letter-spacing:0.8px; display:inline-flex; align-items:center; gap:4px;">
-        ⚡ ACCURACY MODE:
-      </span>
-      <button id="engine-mode-sniper" class="engine-mode-btn" data-engine-mode="sniper" role="button" tabindex="0" style="background:rgba(22, 27, 34, 0.85); border:1px solid rgba(255, 255, 255, 0.12); color:#c9d1d9; font-weight:700; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        🛡️ SNIPER MODE (1-3 Trades/Day • 90%+ Win Rate)
-      </button>
-      <button id="engine-mode-momentum" class="engine-mode-btn active" data-engine-mode="momentum" role="button" tabindex="0" style="background:linear-gradient(135deg, rgba(0, 230, 118, 0.22), rgba(0, 210, 255, 0.22)); border:1.5px solid #00d2ff; color:#fff; font-weight:800; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:11px; box-shadow:0 0 12px rgba(0,210,255,0.3); display:inline-flex; align-items:center; gap:4px;">
-        ⚡ MOMENTUM SCALP (5-10 Quality Trades/Day)
-      </button>
-      <button id="engine-mode-bigmoves" class="engine-mode-btn" data-engine-mode="bigmoves" role="button" tabindex="0" style="background:rgba(22, 27, 34, 0.85); border:1px solid rgba(255, 255, 255, 0.12); color:#c9d1d9; font-weight:700; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:11px; display:inline-flex; align-items:center; gap:4px;">
-        🚀 PRE-BREAKOUT WHALE RADAR (No Entry/SL/TP • Pure Probability)
-      </button>
-    </div>
-
-    <div class="category-toggle-pills" style="display:flex; gap:10px; margin-bottom:16px; align-items:center; flex-wrap:wrap;">
-      <div id="cat-btn-memecoins" class="category-pill active" data-category="memecoins" role="button" tabindex="0" style="background:linear-gradient(135deg, rgba(0, 230, 118, 0.22), rgba(0, 210, 255, 0.22)); border:1.5px solid #00d2ff; color:#fff; font-weight:800; padding:10px 18px; border-radius:8px; cursor:pointer; box-shadow:0 0 16px rgba(0,210,255,0.35); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:inline-flex; align-items:center; gap:6px;">🔥 Meme Coins (24 Pairs)</div>
-      <div id="cat-btn-highcap" class="category-pill" data-category="highcap" role="button" tabindex="0" style="background:rgba(22, 27, 34, 0.85); border:1px solid rgba(255, 255, 255, 0.12); color:#c9d1d9; font-weight:700; padding:10px 18px; border-radius:8px; cursor:pointer; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:inline-flex; align-items:center; gap:6px;">🏦 High Market Cap (20 Pairs)</div>
-      <div id="cat-btn-bigmoves" class="category-pill" data-category="bigmoves" role="button" tabindex="0" style="background:rgba(22, 27, 34, 0.85); border:1px solid rgba(255, 255, 255, 0.12); color:#c9d1d9; font-weight:700; padding:10px 18px; border-radius:8px; cursor:pointer; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:inline-flex; align-items:center; gap:6px;">🚀 Pre-Breakout Big Moves (Squeeze &amp; Whale Radar)</div>
-    </div>
-
-    <div class="scanner-cards-grid" id="memecoin-cards-container">
-      <div class="loading-state-box">Scanning for whale volume spikes, orderflow sweeps, and high-confluence entry setups...</div>
+    <div class="scanner-cards-grid" id="whale-gainers-cards-container">
+      <div class="loading-state-box">Scanning for next day gainers, whale volume surges &amp; high-ROI squeeze setups...</div>
     </div>
   </div>
 
@@ -1076,7 +1054,7 @@
   <script src="clientTradingEngine.js?v=10.3.0"></script>
   <script src="alertService.js?v=10.3.0"></script>
   <script src="engine.js?v=10.3.0"></script>
-  <script src="app.js?v=13.1.0"></script>
+  <script src="app.js?v=13.2.0"></script>
 
 
 
