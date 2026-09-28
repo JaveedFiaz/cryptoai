@@ -5152,8 +5152,10 @@ class ScalperApp {
 
           score = Math.min(99, Math.max(50, Math.round(score)));
 
-          // Strict Confluence Cutoff Gate: Only emit ultra-conviction trades (score >= 85)
-          if (score < 85) return null;
+          // Dynamic Confluence Cutoff Gate based on Active Engine Mode
+          const isSniperMode = (this.activeEngineMode === 'sniper');
+          const minScoreThreshold = isSniperMode ? 90 : 82;
+          if (score < minScoreThreshold) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
           const t24 = tickerMap24h[symbol] || { change24h: 0, volume24h: 0 };
@@ -5173,7 +5175,10 @@ class ScalperApp {
 
           const samplePrice = entry || confirmedBar.close;
           const decimals = samplePrice < 0.0001 ? 8 : (samplePrice < 0.001 ? 7 : (samplePrice < 0.01 ? 6 : (samplePrice < 1 ? 4 : (samplePrice < 10 ? 3 : 2))));
-          const winProb = Math.min(96, Math.max(72, Math.round(score * 0.92)));
+          const isSniper = (this.activeEngineMode === 'sniper');
+          const winProb = isSniper 
+            ? Math.min(96, Math.max(90, Math.round(score * 0.95)))
+            : Math.min(88, Math.max(80, Math.round(score * 0.92)));
 
           const sigObj = {
             symbol,
@@ -5246,8 +5251,9 @@ class ScalperApp {
         return (b.volRatio || 1) - (a.volRatio || 1);
       });
 
-      // Show all live active trades + best candidates (up to 6 cards max)
-      let topSetups = mergedSetups.slice(0, 6);
+      // Dynamic Card Slicing: Sniper Mode strictly caps to max 2 cards (1-3 trades/day), Momentum caps to 5 cards
+      const maxDisplayCards = (this.activeEngineMode === 'sniper') ? 2 : 5;
+      let topSetups = mergedSetups.slice(0, maxDisplayCards);
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) {
