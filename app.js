@@ -5337,8 +5337,8 @@ class ScalperApp {
             return null; // Reject late entries
           }
 
-          // 8. DYNAMIC 100-POINT CONFLUENCE SCORE
-          let score = 50; // Base score
+          // 8. DYNAMIC 100-POINT CONFLUENCE SCORE (HONEST: No artificial base)
+          let score = 0;
           if (volRatio >= 2.5) score += 15;
           else if (volRatio >= 1.5) score += 10;
           else if (volRatio >= 1.0) score += 5;
@@ -5357,14 +5357,14 @@ class ScalperApp {
 
           // Blend with ScalperEngine score if available
           if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL')) {
-            score = Math.round((score + (engineSig.score100 || 85)) / 2);
+            score = Math.round((score + (engineSig.score100 || 0)) / 2);
           }
 
-          score = Math.min(99, Math.max(50, Math.round(score)));
+          score = Math.min(99, Math.max(0, Math.round(score)));
 
           // Dynamic Confluence Cutoff Gate based on Active Engine Mode
           const isSniperMode = (this.activeEngineMode === 'sniper');
-          const minScoreThreshold = isSniperMode ? 90 : 82;
+          const minScoreThreshold = isSniperMode ? 90 : 85;
           if (score < minScoreThreshold) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
@@ -5386,9 +5386,8 @@ class ScalperApp {
           const samplePrice = entry || confirmedBar.close;
           const decimals = samplePrice < 0.0001 ? 8 : (samplePrice < 0.001 ? 7 : (samplePrice < 0.01 ? 6 : (samplePrice < 1 ? 4 : (samplePrice < 10 ? 3 : 2))));
           const isSniper = (this.activeEngineMode === 'sniper');
-          const winProb = isSniper 
-            ? Math.min(96, Math.max(90, Math.round(score * 0.95)))
-            : Math.min(88, Math.max(80, Math.round(score * 0.92)));
+          // HONEST: No fake win probability. Show raw confluence score.
+          const winProb = score;
 
           const sigObj = {
             symbol,
@@ -5717,7 +5716,7 @@ class ScalperApp {
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; background:rgba(255,255,255,0.02); padding:5px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
               <div style="display:flex; flex-direction:column; gap:2px;">
-                <span style="font-size:12px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
+                <span style="font-size:12px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ Confluence: ${cardScore}/99</span></span>
                 <span style="font-size:10.5px; font-weight:700; color:#00f2fe;">${item.strategyLabel || '🌊 MTF TREND CONTINUATION'}</span>
               </div>
               <span class="live-price-badge" style="font-size:13px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:3px 8px; border-radius:4px; border:1px solid rgba(0,242,254,0.35); box-shadow:0 0 8px rgba(0,242,254,0.2);">🟢 LIVE $${fmtVal(curPrice)}</span>

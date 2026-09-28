@@ -528,7 +528,7 @@ class ScalperEngine {
       bFactors.vol = isVolHigh || isVolExpanding; if (bFactors.vol) bScore++;
       bFactors.vwap = !this.options.useVwapFilter || curClose > curVwap; if (bFactors.vwap) bScore++;
       bFactors.pa = isBullCandle && curClose > Math.max(curOpen, prevBar.close); if (bFactors.pa) bScore++;
-      bFactors.breakout = isBullBreakout || bullRetest || curClose > curFastEma * 1.001; if (bFactors.breakout) bScore++;
+      bFactors.breakout = isBullBreakout || bullRetest; if (bFactors.breakout) bScore++;
 
       // 8-Factor Bearish Scoring (0 - 8)
       let sScore = 0;
@@ -540,7 +540,7 @@ class ScalperEngine {
       sFactors.vol = isVolHigh || isVolExpanding; if (sFactors.vol) sScore++;
       sFactors.vwap = !this.options.useVwapFilter || curClose < curVwap; if (sFactors.vwap) sScore++;
       sFactors.pa = isBearCandle && curClose < Math.min(curOpen, prevBar.close); if (sFactors.pa) sScore++;
-      sFactors.breakout = isBearBreakout || bearRetest || curClose < curFastEma * 0.999; if (sFactors.breakout) sScore++;
+      sFactors.breakout = isBearBreakout || bearRetest; if (sFactors.breakout) sScore++;
 
       // Stop Loss calculations
       let longSl, shortSl;

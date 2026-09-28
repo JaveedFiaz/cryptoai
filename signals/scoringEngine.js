@@ -284,13 +284,61 @@
       breakdown.entry = entryScore;
 
       // -----------------------------------------------------------------------
+      // NEGATIVE PENALTY DEDUCTIONS (NEW: counter-trend & exhaustion guards)
+      // -----------------------------------------------------------------------
+      let penaltyScore = 0;
+      
+      // RSI Exhaustion Penalty: heavy overbought/oversold conditions
+      if (rsi !== undefined && rsi !== null) {
+        if (isLong && rsi > 75) {
+          penaltyScore -= 12;
+          reasons.push(`⚠️ RSI ${rsi.toFixed(1)} SEVERELY OVERBOUGHT — reversal risk`);
+        } else if (isLong && rsi > 68) {
+          penaltyScore -= 6;
+          reasons.push(`⚠️ RSI ${rsi.toFixed(1)} approaching overbought zone`);
+        }
+        if (isShort && rsi < 25) {
+          penaltyScore -= 12;
+          reasons.push(`⚠️ RSI ${rsi.toFixed(1)} SEVERELY OVERSOLD — bounce risk`);
+        } else if (isShort && rsi < 32) {
+          penaltyScore -= 6;
+          reasons.push(`⚠️ RSI ${rsi.toFixed(1)} approaching oversold zone`);
+        }
+      }
+      
+      // Counter-trend EMA penalty
+      if (isLong && ema20 && ema50 && ema20 < ema50) {
+        penaltyScore -= 8;
+        reasons.push('⚠️ Counter-trend: EMA 20 below EMA 50');
+      }
+      if (isShort && ema20 && ema50 && ema20 > ema50) {
+        penaltyScore -= 8;
+        reasons.push('⚠️ Counter-trend: EMA 20 above EMA 50');
+      }
+      
+      // Weak ADX penalty (no directional trend)
+      if (adx && adx < 15) {
+        penaltyScore -= 8;
+        reasons.push(`⚠️ ADX ${adx.toFixed(1)} too low — no directional conviction`);
+      }
+      
+      // Low volume penalty
+      if (volume && volSma && volSma > 0) {
+        const ratio = volume / volSma;
+        if (ratio < 0.7) {
+          penaltyScore -= 6;
+          reasons.push(`⚠️ Below-average volume: ${ratio.toFixed(1)}x — weak participation`);
+        }
+      }
+      
+      breakdown.penalties = penaltyScore;
+
+      // -----------------------------------------------------------------------
       // TOTAL SCORE & CLASSIFICATION
       // -----------------------------------------------------------------------
-      // The terminal intentionally reserves 100 as an unattainable perfect score.
-      // Keep every published confluence value on the documented 50–99 scale.
-      const totalScore = Math.min(99, Math.max(50, Math.round(
-        trendScore + structureScore + momentumScore + volumeScore + liquidityScore + mtfScore + entryScore
-      )));
+      // HONEST SCORING: No artificial floor. Raw score from 0-99.
+      const rawTotal = trendScore + structureScore + momentumScore + volumeScore + liquidityScore + mtfScore + entryScore + penaltyScore;
+      const totalScore = Math.min(99, Math.max(0, Math.round(rawTotal)));
 
       let classification = 'NO_TRADE';
       let confidence = 'LOW';
