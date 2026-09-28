@@ -4944,13 +4944,22 @@ class ScalperApp {
           const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
           const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
 
-          // 1. Check active trade signal in cache (Structure SL + Trailing Breakeven Lock + 2-Hour Retention)
+          // 1. Check active trade signal in cache (Structure SL + Trailing Breakeven Lock + Pending Entry Tracking)
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
             const curClose = latestBar.close;
             const curLow = latestBar.low;
             const curHigh = latestBar.high;
             const isLong = cached.dir === 'LONG';
+
+            // Check if price has filled limit entry level yet
+            if (!cached.entryFilled) {
+              const isFilled = isLong ? (curLow <= cached.entry) : (curHigh >= cached.entry);
+              if (isFilled) {
+                cached.entryFilled = true;
+                cached.entryFillTime = now;
+              }
+            }
 
             // Trailing Stop Loss & Auto-Breakeven Lock: Once TP1/TP2 hit, protect profits!
             if (isLong) {
@@ -5401,29 +5410,40 @@ class ScalperApp {
         } else if (item.entry) {
           const curPrice = item.currentPrice || item.price || item.entry;
           const isLong = item.dir === 'LONG';
-          let statusTag = '🟢 TRADE INTACT';
 
-          if (curPrice > 0 && item.entry > 0) {
+          // If limit entry level has not been reached yet, display PENDING ENTRY state clearly
+          if (!item.entryFilled) {
+            cardStyle = isTopPick
+              ? `border:2px solid #ffd700; box-shadow:0 0 18px rgba(255,215,0,0.35); background:linear-gradient(180deg, rgba(255,215,0,0.08) 0%, rgba(20,25,38,0.95) 100%);`
+              : `border:1.5px dashed #00d2ff; background:rgba(0,210,255,0.02);`;
+
+            exitAdvisoryHtml = `
+              <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(0,210,255,0.15); border:1px solid #00d2ff; color:#00d2ff; font-weight:800;">
+                ⏳ PENDING PULLBACK ENTRY • Price ${fmtVal(curPrice)} (Retest Target ${fmtVal(item.entry)})
+              </div>
+            `;
+          } else {
+            let statusTag = '🟢 TRADE ACTIVE & INTACT';
             if (isLong) {
-              if (curPrice < item.entry && item.sl) {
-                statusTag = '⚡ DISCOUNT ENTRY (Retest Support)';
+              if (curPrice < item.entry) {
+                statusTag = '⚡ DISCOUNT ZONE (Retest Support)';
               } else if (curPrice > item.entry) {
                 statusTag = '🟢 IN PROFIT (Moving to TP1)';
               }
             } else { // SHORT
-              if (curPrice > item.entry && item.sl) {
-                statusTag = '⚡ DISCOUNT ENTRY (Retest Resistance)';
+              if (curPrice > item.entry) {
+                statusTag = '⚡ DISCOUNT ZONE (Retest Resistance)';
               } else if (curPrice < item.entry) {
                 statusTag = '🟢 IN PROFIT (Moving to TP1)';
               }
             }
-          }
 
-          exitAdvisoryHtml = `
-            <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center;">
-              ${statusTag} • Live PnL: ${pnlStr}
-            </div>
-          `;
+            exitAdvisoryHtml = `
+              <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center;">
+                ${statusTag} • Live PnL: ${pnlStr}
+              </div>
+            `;
+          }
         }
 
         const buyPctVal = item.orderFlowBuyPct || 50;

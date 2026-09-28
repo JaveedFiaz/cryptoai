@@ -51,8 +51,8 @@ class ExecutionFilter {
     const pass1 = score >= minScoreThreshold;
     checks.push({ id: 1, name: 'Signal Confluence Score Threshold', passed: pass1, detail: `Score ${score} >= ${minScoreThreshold}` });
 
-    // 2. 15m macro trend confirms direction
-    const pass2 = isLong ? (signal?.htfBullish !== false) : (signal?.htfBearish !== false);
+    // 2. 15m macro trend confirms direction (undefined must not pass)
+    const pass2 = isLong ? signal?.htfBullish === true : signal?.htfBearish === true;
     checks.push({ id: 2, name: '15m Macro Trend Alignment', passed: pass2, detail: isLong ? '15m Bullish' : '15m Bearish' });
 
     // 3. 1m entry timeframe confirms breakout/retest/trigger

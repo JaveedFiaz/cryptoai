@@ -6,7 +6,7 @@
 
 class OrderRouter {
   constructor(options = {}) {
-    this.mode = options.mode || 'MEXC_REAL'; // 'MEXC_REAL' or 'PAPER'
+    this.mode = options.mode || 'PAPER'; // never default to live money
     this.paperBroker = options.paperBroker;
     this.mexcClient = options.mexcClient;
     this.mockExchange = options.mockExchange;

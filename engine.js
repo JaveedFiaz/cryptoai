@@ -59,7 +59,7 @@ class ScalperEngine {
       
       minBuyScore: 6,
       minSellScore: 6,
-      autoTradeMinScore: 70,
+      autoTradeMinScore: 85,
       signalCooldown: 4,
       
       slMethod: 'ATR', // 'ATR' or 'SWING'
@@ -81,6 +81,7 @@ class ScalperEngine {
 
     this.structureEngine = MSE ? new MSE({ pivotLookback: this.options.pivotLookback }) : null;
     this.liquidityEngine = LE ? new LE() : null;
+    // MtfEngine methods are static — keep the class reference and actually call it in analyze().
     this.mtfEngine = ME || null;
     this.scoringEngine = SE ? new SE({ autoTradeMinScore: this.options.autoTradeMinScore }) : null;
 
@@ -101,6 +102,64 @@ class ScalperEngine {
 
   updateSettings(newOptions) {
     this.options = Object.assign(this.options, newOptions);
+  }
+
+  static resampleBars(bars, periodSec) {
+    if (!bars || bars.length === 0 || !periodSec) return [];
+    const buckets = new Map();
+    for (const bar of bars) {
+      const t = Number(bar.time);
+      if (!Number.isFinite(t)) continue;
+      const bucket = Math.floor(t / periodSec) * periodSec;
+      const existing = buckets.get(bucket);
+      if (!existing) {
+        buckets.set(bucket, {
+          time: bucket,
+          open: bar.open,
+          high: bar.high,
+          low: bar.low,
+          close: bar.close,
+          volume: bar.volume || 0
+        });
+      } else {
+        existing.high = Math.max(existing.high, bar.high);
+        existing.low = Math.min(existing.low, bar.low);
+        existing.close = bar.close;
+        existing.volume += bar.volume || 0;
+      }
+    }
+    return Array.from(buckets.values()).sort((a, b) => a.time - b.time);
+  }
+
+  computeMtfAlignment(side, bars, htfBars) {
+    const Mtf = this.mtfEngine;
+    if (!Mtf || typeof Mtf.checkAlignment !== 'function' || typeof Mtf.evaluateTrend !== 'function') {
+      return { score: 4, isAligned: false, reasons: ['MTF engine unavailable'] };
+    }
+
+    const tf1m = bars || [];
+    const tf5m = (htfBars && htfBars.length >= 20) ? htfBars : ScalperEngine.resampleBars(tf1m, 5 * 60);
+    const tf15m = ScalperEngine.resampleBars(tf5m.length ? tf5m : tf1m, 15 * 60);
+
+    const emaOf = (series, len) => ScalperEngine.calcEMA(series.map(b => b.close), len);
+    const trend15 = Mtf.evaluateTrend(tf15m, emaOf(tf15m, 50), emaOf(tf15m, 200));
+    const trend5 = Mtf.evaluateTrend(tf5m, emaOf(tf5m, 50), emaOf(tf5m, 200));
+
+    let structure = 'CONSOLIDATION';
+    if (this.structureEngine && tf5m.length >= 30) {
+      try {
+        const s = this.structureEngine.analyze(tf5m);
+        structure = s?.structure || 'CONSOLIDATION';
+      } catch (e) {
+        structure = 'CONSOLIDATION';
+      }
+    }
+
+    return Mtf.checkAlignment({
+      tf15m: { trend: trend15, candles: tf15m },
+      tf5m: { trend: trend5, candles: tf5m, structure },
+      tf1m: { trigger: side, candles: tf1m }
+    }, side);
   }
 
   // --- Math Utilities ---
@@ -343,6 +402,10 @@ class ScalperEngine {
       htfBearish = !isNaN(lastHtfEma) && lastHtfClose < lastHtfEma;
     }
 
+    // Real 15m/5m/1m confluence (B5). HTF buy/sell *gates* above stay on 5m EMA50.
+    const mtfBuy = this.computeMtfAlignment('BUY', bars, htfBars);
+    const mtfSell = this.computeMtfAlignment('SELL', bars, htfBars);
+
     // Historical signal loop to build state without repainting
     const signals = [];
     let lastPivotHigh = null;
@@ -564,7 +627,7 @@ class ScalperEngine {
           volSma: curVolSma,
           marketStructure: marketStructureResult,
           liquiditySweep: liquiditySweepResult,
-          mtfAlignment: { score: htfBullish ? 8 : 2, reasons: htfBullish ? ['Multi-timeframe trend aligns Bullish'] : [] }
+          mtfAlignment: mtfBuy
         });
         bScore100 = bScoreDetails.score;
       }
@@ -615,7 +678,7 @@ class ScalperEngine {
           volSma: curVolSma,
           marketStructure: marketStructureResult,
           liquiditySweep: liquiditySweepResult,
-          mtfAlignment: { score: htfBearish ? 8 : 2, reasons: htfBearish ? ['Multi-timeframe trend aligns Bearish'] : [] }
+          mtfAlignment: mtfSell
         });
         sScore100 = sScoreDetails.score;
       }
@@ -708,7 +771,7 @@ class ScalperEngine {
         volSma: latestVolSma,
         marketStructure: marketStructureResult,
         liquiditySweep: liquiditySweepResult,
-        mtfAlignment: { score: htfBullish ? 8 : (htfBearish ? 8 : 4), reasons: [] }
+        mtfAlignment: candidateSide === 'BUY' ? mtfBuy : mtfSell
       });
     }
 

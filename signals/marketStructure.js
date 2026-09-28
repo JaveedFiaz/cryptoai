@@ -137,58 +137,57 @@
         }
       }
 
-      // Detect BOS & CHoCH across recent candles up to latest candle
-      const latestCandle = candles[candles.length - 1];
-      const prevCandle = candles[candles.length - 2];
+      // Detect BOS & CHoCH on the most recent swing break, not only the last two candles.
+      // A one-bar window dropped structure points on every signal that printed after the break bar.
       const recentHighLevel = recentHighs.length > 0 ? recentHighs[recentHighs.length - 1].price : null;
       const recentLowLevel = recentLows.length > 0 ? recentLows[recentLows.length - 1].price : null;
+      const lookbackStart = Math.max(1, candles.length - 24);
 
-      // BOS (Break of Structure):
-      // In uptrend: Close breaks above most recent swing high
-      if (recentHighLevel && latestCandle.close > recentHighLevel && prevCandle.close <= recentHighLevel) {
-        if (isUptrend) {
-          lastBOS = {
-            type: 'BULLISH_BOS',
-            level: recentHighLevel,
-            brokenAt: latestCandle.time,
-            description: `Bullish BOS: Clean break above Swing High ($${recentHighLevel.toFixed(2)})`
-          };
-          reasons.push(lastBOS.description);
-        } else if (isDowntrend) {
-          // Downtrend breaking above swing high = CHoCH (Change of Character)
-          lastCHoCH = {
-            type: 'BULLISH_CHOCH',
-            level: recentHighLevel,
-            brokenAt: latestCandle.time,
-            description: `Bullish CHoCH: Trend reversal break above Lower High ($${recentHighLevel.toFixed(2)})`
-          };
-          reasons.push(lastCHoCH.description);
-          currentTrend = 'BULLISH_REVERSAL';
+      for (let i = lookbackStart; i < candles.length; i++) {
+        const c = candles[i];
+        const p = candles[i - 1];
+
+        if (recentHighLevel && c.close > recentHighLevel && p.close <= recentHighLevel) {
+          if (isUptrend) {
+            lastBOS = {
+              type: 'BULLISH_BOS',
+              level: recentHighLevel,
+              brokenAt: c.time,
+              description: `Bullish BOS: Clean break above Swing High ($${recentHighLevel.toFixed(2)})`
+            };
+          } else if (isDowntrend) {
+            lastCHoCH = {
+              type: 'BULLISH_CHOCH',
+              level: recentHighLevel,
+              brokenAt: c.time,
+              description: `Bullish CHoCH: Trend reversal break above Lower High ($${recentHighLevel.toFixed(2)})`
+            };
+            currentTrend = 'BULLISH_REVERSAL';
+          }
+        }
+
+        if (recentLowLevel && c.close < recentLowLevel && p.close >= recentLowLevel) {
+          if (isDowntrend) {
+            lastBOS = {
+              type: 'BEARISH_BOS',
+              level: recentLowLevel,
+              brokenAt: c.time,
+              description: `Bearish BOS: Clean break below Swing Low ($${recentLowLevel.toFixed(2)})`
+            };
+          } else if (isUptrend) {
+            lastCHoCH = {
+              type: 'BEARISH_CHOCH',
+              level: recentLowLevel,
+              brokenAt: c.time,
+              description: `Bearish CHoCH: Trend reversal break below Higher Low ($${recentLowLevel.toFixed(2)})`
+            };
+            currentTrend = 'BEARISH_REVERSAL';
+          }
         }
       }
 
-      // In downtrend: Close breaks below most recent swing low
-      if (recentLowLevel && latestCandle.close < recentLowLevel && prevCandle.close >= recentLowLevel) {
-        if (isDowntrend) {
-          lastBOS = {
-            type: 'BEARISH_BOS',
-            level: recentLowLevel,
-            brokenAt: latestCandle.time,
-            description: `Bearish BOS: Clean break below Swing Low ($${recentLowLevel.toFixed(2)})`
-          };
-          reasons.push(lastBOS.description);
-        } else if (isUptrend) {
-          // Uptrend breaking below swing low = CHoCH (Change of Character)
-          lastCHoCH = {
-            type: 'BEARISH_CHOCH',
-            level: recentLowLevel,
-            brokenAt: latestCandle.time,
-            description: `Bearish CHoCH: Trend reversal break below Higher Low ($${recentLowLevel.toFixed(2)})`
-          };
-          reasons.push(lastCHoCH.description);
-          currentTrend = 'BEARISH_REVERSAL';
-        }
-      }
+      if (lastBOS) reasons.push(lastBOS.description);
+      if (lastCHoCH) reasons.push(lastCHoCH.description);
 
       // Dynamic Support / Resistance Zones
       const supportZones = [];

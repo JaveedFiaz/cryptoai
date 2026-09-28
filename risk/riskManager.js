@@ -19,8 +19,7 @@ class RiskManager {
       consecutiveLossLimit: 3,       // Max 3 consecutive losses before circuit breaker
       maxSpreadPct: 0.001,           // Max 0.1% bid/ask spread
       maxSlippagePct: 0.0015,        // Max 0.15% acceptable slippage
-      defaultAutoTradeMinScore: 70
-   // Auto-trade threshold (default 85/100)
+      defaultAutoTradeMinScore: 85
     }, options);
 
     // CRITICAL SAFETY REQUIREMENT:

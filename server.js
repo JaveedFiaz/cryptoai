@@ -526,7 +526,7 @@ const server = http.createServer(async (req, res) => {
           openPositions: await (mexcClient.isConfigured() ? mexcClient.getOpenPositions() : mockExchange.getOpenPositions()).catch(() => []),
           account: await (mexcClient.isConfigured() ? mexcClient.getAccountAssets() : mockExchange.getAccountAssets()).catch(() => ({ equity: 10000 })),
           leverage: body.leverage || 10,
-          isAutoTrade: false
+          isAutoTrade: !!body.isAutoTrade
         });
         return sendJSON(res, 200, result);
       }
@@ -801,7 +801,23 @@ const server = http.createServer(async (req, res) => {
   let cleanPath = reqPath;
   if (cleanPath === '/' || cleanPath === '') cleanPath = '/index.html';
 
-  const filePath = path.join(PUBLIC_DIR, cleanPath);
+  const publicRoot = path.resolve(PUBLIC_DIR);
+  const filePath = path.resolve(publicRoot, '.' + cleanPath.replace(/\\/g, '/'));
+  const relative = path.relative(publicRoot, filePath);
+  const blockedName = path.basename(filePath).toLowerCase();
+  if (
+    !relative ||
+    relative.startsWith('..') ||
+    path.isAbsolute(relative) ||
+    relative.split(path.sep)[0] === '.git' ||
+    blockedName === '.env' ||
+    blockedName.startsWith('.env.')
+  ) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('403 Forbidden');
+    return;
+  }
+
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 

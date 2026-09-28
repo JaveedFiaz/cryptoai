@@ -88,7 +88,7 @@ class Database {
       maxRiskPerTradePct: 1.5,
       maxDailyLossPct: 5.0,
       maxOpenPositions: 3,
-      autoTradeMinScore: 70,
+      autoTradeMinScore: 85,
 
       autoTradeMode: 'PAPER'
     });
