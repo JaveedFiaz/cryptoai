@@ -5381,6 +5381,7 @@ class ScalperApp {
           whaleBadge = `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${(item.volRatio || 1).toFixed(1)}x</span>`;
         }
 
+        const curPrice = item.currentPrice || item.price || item.entry;
         let exitAdvisoryHtml = '';
         const livePnl = item.pnlPct !== undefined ? item.pnlPct : 0;
         const pnlStr = `${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%`;
@@ -5408,7 +5409,6 @@ class ScalperApp {
             </div>
           `;
         } else if (item.entry) {
-          const curPrice = item.currentPrice || item.price || item.entry;
           const isLong = item.dir === 'LONG';
 
           // If limit entry level has not been reached yet, display PENDING ENTRY state clearly
@@ -5462,6 +5462,7 @@ class ScalperApp {
               <div style="display:flex; align-items:center; gap:8px;">
                 <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
                 <span style="font-size:12px; font-weight:700; color:${item.changePct >= 0 ? '#00e676' : '#ff3b30'};">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</span>
+                <span style="font-size:12px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:2px 7px; border-radius:4px; border:1px solid rgba(0,242,254,0.3);">🟢 LIVE $${fmtVal(curPrice)}</span>
               </div>
               ${whaleBadge}
             </div>
@@ -5485,7 +5486,7 @@ class ScalperApp {
               </div>
               <div style="display:flex; justify-content:space-between; margin:5px 0;">
                 <span style="color:var(--text-muted);">🎯 Liquidation Sweep Target:</span>
-                <b style="color:#ffd700; font-family:var(--font-mono);">${item.dir === 'LONG' ? 'Short Liquidation Sweep Above' : 'Long Liquidation Sweep Below'} ${fmtVal(item.price * (item.dir === 'LONG' ? 1.08 : 0.92))}</b>
+                <b style="color:#ffd700; font-family:var(--font-mono);">${item.dir === 'LONG' ? 'Short Liquidation Sweep Above' : 'Long Liquidation Sweep Below'} ${fmtVal(curPrice * (item.dir === 'LONG' ? 1.08 : 0.92))}</b>
               </div>
               <div style="display:flex; justify-content:space-between; margin:5px 0;">
                 <span style="color:var(--text-muted);">📈 Projected Expansion:</span>
@@ -5509,7 +5510,7 @@ class ScalperApp {
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
               <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
-              <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#fff;">${fmtVal(item.price)}</span>
+              <span style="font-size:13px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:3px 8px; border-radius:4px; border:1px solid rgba(0,242,254,0.35); box-shadow:0 0 8px rgba(0,242,254,0.2);">🟢 LIVE $${fmtVal(curPrice)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px 8px; border-radius:6px; margin:6px 0; font-size:11px;">
               <span style="color:var(--text-muted);">🐋 Taker Orderflow:</span>
@@ -5518,7 +5519,8 @@ class ScalperApp {
               </strong>
             </div>
             ${exitAdvisoryHtml}
-            <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;">
+            <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:4px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:10.5px; margin-bottom:10px; text-align:center;">
+              <div><span style="color:var(--color-gold); font-weight:700;">ENTRY:</span> <b style="color:#fff;">${fmtVal(item.entry)}</b></div>
               <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">${fmtVal(item.sl)}</b></div>
               <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">${fmtVal(item.tp1)}</b></div>
               <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">${fmtVal(item.tp2)}</b></div>
