@@ -166,7 +166,22 @@
   <!-- ========================================================================
        TAB PANE 1: TERMINAL & CHART
        ======================================================================== -->
-  <div id="tab-terminal" class="tab-pane active">
+  <div id="tab-terminal" class="tab-pane active" style="flex-direction:column;">
+    <!-- TOP SECTION: CONFIDENT PRIME TRADES FEED & CARDS -->
+    <div class="prime-trades-section" style="padding:12px 14px 8px 14px; background:rgba(13, 17, 23, 0.95); border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div style="font-size:13px; font-weight:900; color:#ffd700; display:flex; align-items:center; gap:6px; letter-spacing:0.5px;">
+          🎯 CONFIDENT PRIME TRADES (90%+ ACCURACY)
+        </div>
+        <span style="font-size:11px; font-weight:700; color:var(--color-cyan); background:rgba(0,210,255,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(0,210,255,0.3);">
+          ⚡ AUTOMATIC SNIPER SCANNER
+        </span>
+      </div>
+      <div class="scanner-cards-grid" id="memecoin-cards-container">
+        <div class="loading-state-box">Scanning for highest confluence Prime Trades &amp; Orderflow Sweeps...</div>
+      </div>
+    </div>
+
     <!-- MAIN WORKSPACE: CHART (LEFT) + TRADING DOCK (RIGHT) -->
     <main class="main-workspace">
       <div class="chart-wrapper">
@@ -398,7 +413,7 @@
        BOTTOM PANEL: POSITIONS, OPEN ORDERS, TRADE HISTORY, SIGNALS
        ======================================================================== -->
   <section class="bottom-panel">
-    <div class="panel-tabs">
+    <div class="panel-tabs" style="display:none !important;">
       <div class="tab-buttons">
         <button class="tab-btn active" data-tab="tab-signals">
           ⚡ Confluence Signals
@@ -1061,7 +1076,7 @@
   <script src="clientTradingEngine.js?v=10.3.0"></script>
   <script src="alertService.js?v=10.3.0"></script>
   <script src="engine.js?v=10.3.0"></script>
-  <script src="app.js?v=13.0.0"></script>
+  <script src="app.js?v=13.1.0"></script>
 
 
 

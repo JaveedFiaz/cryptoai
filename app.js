@@ -2128,10 +2128,8 @@ class ScalperApp {
 
   // Second-by-second DOM update for setup trade cards live price & PnL
   updateCardLivePriceDOM(sym, price, cached) {
-    const container = document.getElementById('memecoin-cards-container');
-    if (!container) return;
-    const card = container.querySelector(`.setup-card[data-card-symbol="${sym}"]`);
-    if (!card) return;
+    const cards = document.querySelectorAll(`.setup-card[data-card-symbol="${sym}"]`);
+    if (!cards || cards.length === 0) return;
 
     const fmtVal = (val) => {
       if (val == null || isNaN(val) || val === 0) return '0.00';
@@ -2140,6 +2138,8 @@ class ScalperApp {
       const dec = abs < 0.0001 ? 8 : (abs < 0.001 ? 7 : (abs < 0.01 ? 6 : (abs < 1 ? 4 : (abs < 10 ? 3 : 2))));
       return num.toFixed(dec);
     };
+
+    cards.forEach(card => {
 
     // 1. Update Live Price Badge element in real time
     const badge = card.querySelector('.live-price-badge');
@@ -2198,7 +2198,8 @@ class ScalperApp {
         advisory.innerHTML = `${statusTag} • Live PnL: ${pnlStr}`;
       }
     }
-  }
+  });
+}
 
   processIncomingTick(bar, isClosed) {
     const n = this.bars.length;

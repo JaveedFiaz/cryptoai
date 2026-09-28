@@ -1055,7 +1055,7 @@ body {
 }
 
 .panel-tabs {
-  height: 34px;
+  display: none !important;
   background: var(--bg-main);
   border-bottom: 1px solid var(--border-color);
   display: flex;
