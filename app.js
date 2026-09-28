@@ -46,6 +46,8 @@ class ScalperApp {
     this.activeWs = null;
     this.tickerWs = null;
     this.tradeWs = null;
+    this.globalTickerWs = null;
+    this.globalLivePrices = {};
     this.sseSource = null;
     this.timerInterval = null;
     this.pricePollInterval = null;
@@ -242,6 +244,7 @@ class ScalperApp {
     this.initChart();
     this.initTradingViewChart();
     this.initInstitutionalFeatures();
+    this.initGlobalTickerWs();
 
     this.switchSubnavTab(initialTab);
     const initialMobileTab = (initialTab === 'memecoins') ? 'memecoins' : ((initialTab === 'scanner') ? 'scanner' : (initialTab === 'analytics' ? 'analytics' : 'chart'));
@@ -2028,6 +2031,173 @@ class ScalperApp {
     }
 
     this.updateLivePositionPnL();
+  }
+
+  // Real-time market-wide ticker stream for tick-by-tick card updates across all trade setups
+  initGlobalTickerWs() {
+    if (this.globalTickerWs) {
+      try { this.globalTickerWs.close(); } catch (e) {}
+      this.globalTickerWs = null;
+    }
+    const wsUrl = 'wss://fstream.binance.com/ws/!miniTicker@arr';
+    this.globalTickerWs = new WebSocket(wsUrl);
+
+    this.globalTickerWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!Array.isArray(data)) return;
+
+        const now = Date.now();
+        for (let i = 0; i < data.length; i++) {
+          const item = data[i];
+          const sym = item.s;
+          const price = parseFloat(item.c);
+          if (isNaN(price) || price <= 0) continue;
+
+          this.globalLivePrices[sym] = price;
+
+          if (this.memeSignalsCache && this.memeSignalsCache[sym]) {
+            const cached = this.memeSignalsCache[sym];
+            cached.currentPrice = price;
+
+            const isLong = cached.dir === 'LONG';
+            if (!cached.entryFilled) {
+              if ((isLong && price <= cached.entry) || (!isLong && price >= cached.entry)) {
+                cached.entryFilled = true;
+                cached.entryFillTime = now;
+              }
+            }
+
+            if (cached.entryFilled) {
+              const pnlPct = isLong 
+                ? ((price - cached.entry) / cached.entry) * 100
+                : ((cached.entry - price) / cached.entry) * 100;
+              cached.pnlPct = pnlPct;
+            }
+
+            this.updateCardLivePriceDOM(sym, price, cached);
+          }
+        }
+      } catch (e) {}
+    };
+
+    this.globalTickerWs.onerror = () => {
+      if (this.globalTickerWs && !this.globalTickerWs._fallback) {
+        try { this.globalTickerWs.close(); } catch(e) {}
+        this.globalTickerWs = new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr');
+        this.globalTickerWs._fallback = true;
+        this.globalTickerWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (!Array.isArray(data)) return;
+            const now = Date.now();
+            for (let i = 0; i < data.length; i++) {
+              const item = data[i];
+              const sym = item.s;
+              const price = parseFloat(item.c);
+              if (isNaN(price) || price <= 0) continue;
+              this.globalLivePrices[sym] = price;
+              if (this.memeSignalsCache && this.memeSignalsCache[sym]) {
+                const cached = this.memeSignalsCache[sym];
+                cached.currentPrice = price;
+                const isLong = cached.dir === 'LONG';
+                if (!cached.entryFilled) {
+                  if ((isLong && price <= cached.entry) || (!isLong && price >= cached.entry)) {
+                    cached.entryFilled = true;
+                    cached.entryFillTime = now;
+                  }
+                }
+                if (cached.entryFilled) {
+                  const pnlPct = isLong 
+                    ? ((price - cached.entry) / cached.entry) * 100
+                    : ((cached.entry - price) / cached.entry) * 100;
+                  cached.pnlPct = pnlPct;
+                }
+                this.updateCardLivePriceDOM(sym, price, cached);
+              }
+            }
+          } catch(e) {}
+        };
+      }
+    };
+
+    this.globalTickerWs.onclose = () => {
+      setTimeout(() => this.initGlobalTickerWs(), 3000);
+    };
+  }
+
+  // Second-by-second DOM update for setup trade cards live price & PnL
+  updateCardLivePriceDOM(sym, price, cached) {
+    const container = document.getElementById('memecoin-cards-container');
+    if (!container) return;
+    const card = container.querySelector(`.setup-card[data-card-symbol="${sym}"]`);
+    if (!card) return;
+
+    const fmtVal = (val) => {
+      if (val == null || isNaN(val) || val === 0) return '0.00';
+      const num = Number(val);
+      const abs = Math.abs(num);
+      const dec = abs < 0.0001 ? 8 : (abs < 0.001 ? 7 : (abs < 0.01 ? 6 : (abs < 1 ? 4 : (abs < 10 ? 3 : 2))));
+      return num.toFixed(dec);
+    };
+
+    // 1. Update Live Price Badge element in real time
+    const badge = card.querySelector('.live-price-badge');
+    if (badge) {
+      badge.textContent = `🟢 LIVE $${fmtVal(price)}`;
+    }
+
+    // 2. Update Risk-Reward / Retest / Exit Advisory Box in real time
+    const advisory = card.querySelector('.rr-box-advisory');
+    if (advisory && cached && cached.entry) {
+      const isLong = cached.dir === 'LONG';
+      const livePnl = cached.pnlPct !== undefined ? cached.pnlPct : 0;
+      const pnlStr = `${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%`;
+
+      if (cached.status === 'SL_HIT') {
+        advisory.className = 'rr-box-advisory exit-warning';
+        advisory.style.background = 'rgba(255,59,48,0.25)';
+        advisory.style.border = '1.5px solid #ff3b30';
+        advisory.style.color = '#ff3b30';
+        advisory.innerHTML = `🔴 STOP LOSS HIT ($${fmtVal(cached.sl)}) • Trade Closed (${pnlStr})`;
+      } else if ((cached.status === 'TP3_HIT' || cached.status === 'TP2_HIT' || cached.status === 'TP1_HIT') && livePnl >= 0) {
+        const tpLabel = cached.status === 'TP3_HIT' ? 'TP3' : (cached.status === 'TP2_HIT' ? 'TP2' : 'TP1');
+        advisory.className = 'rr-box-advisory intact';
+        advisory.style.background = 'rgba(0,230,118,0.2)';
+        advisory.style.border = '1.5px solid #00e676';
+        advisory.style.color = '#00e676';
+        advisory.innerHTML = `🚀 TARGET ${tpLabel} HIT • Profit Secured (${pnlStr})`;
+      } else if (cached.shouldExit) {
+        advisory.className = 'rr-box-advisory exit-warning';
+        advisory.innerHTML = `🚨 EXIT TRADE NOW: CLOSE AT MARKET (${cached.exitReason || 'MOMENTUM REVERSAL'})`;
+      } else if (!cached.entryFilled) {
+        advisory.className = 'rr-box-advisory intact';
+        advisory.style.background = 'rgba(0,210,255,0.15)';
+        advisory.style.border = '1px solid #00d2ff';
+        advisory.style.color = '#00d2ff';
+        advisory.innerHTML = `⏳ PENDING PULLBACK ENTRY • Price ${fmtVal(price)} (Retest Target ${fmtVal(cached.entry)})`;
+      } else {
+        let statusTag = '🟢 TRADE ACTIVE & INTACT';
+        if (isLong) {
+          if (price < cached.entry) {
+            statusTag = '⚡ DISCOUNT ZONE (Retest Support)';
+          } else if (price > cached.entry) {
+            statusTag = '🟢 IN PROFIT (Moving to TP1)';
+          }
+        } else { // SHORT
+          if (price > cached.entry) {
+            statusTag = '⚡ DISCOUNT ZONE (Retest Resistance)';
+          } else if (price < cached.entry) {
+            statusTag = '🟢 IN PROFIT (Moving to TP1)';
+          }
+        }
+        advisory.className = 'rr-box-advisory intact';
+        advisory.style.background = '';
+        advisory.style.border = '';
+        advisory.style.color = '';
+        advisory.innerHTML = `${statusTag} • Live PnL: ${pnlStr}`;
+      }
+    }
   }
 
   processIncomingTick(bar, isClosed) {
