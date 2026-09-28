@@ -4944,21 +4944,37 @@ class ScalperApp {
           const totalMovePct = ((confirmedBar.close - refBar.close) / refBar.close) * 100;
           const singleBarMovePct = ((confirmedBar.close - confirmedBar.open) / confirmedBar.open) * 100;
 
-          // 1. Check active trade signal in cache (Confirmed Bar SL + 2-Hour Retention)
+          // 1. Check active trade signal in cache (Structure SL + Trailing Breakeven Lock + 2-Hour Retention)
           const cached = this.memeSignalsCache[symbol];
           if (cached) {
             const curClose = latestBar.close;
             const curLow = latestBar.low;
             const curHigh = latestBar.high;
             const isLong = cached.dir === 'LONG';
+
+            // Trailing Stop Loss & Auto-Breakeven Lock: Once TP1/TP2 hit, protect profits!
+            if (isLong) {
+              if ((curHigh >= cached.tp2 || cached.status === 'TP2_HIT') && cached.sl < cached.tp1) {
+                cached.sl = cached.tp1; // Lock TP1 Profit
+              } else if ((curHigh >= cached.tp1 || cached.status === 'TP1_HIT') && cached.sl < cached.entry) {
+                cached.sl = cached.entry; // Lock Breakeven
+              }
+            } else {
+              if ((curLow <= cached.tp2 || cached.status === 'TP2_HIT') && cached.sl > cached.tp1) {
+                cached.sl = cached.tp1; // Lock TP1 Profit
+              } else if ((curLow <= cached.tp1 || cached.status === 'TP1_HIT') && cached.sl > cached.entry) {
+                cached.sl = cached.entry; // Lock Breakeven
+              }
+            }
+
             const isTp3Hit = isLong ? (curHigh >= cached.tp3) : (curLow <= cached.tp3);
             const isTp2Hit = isLong ? (curHigh >= cached.tp2) : (curLow <= cached.tp2);
             const isTp1Hit = isLong ? (curHigh >= cached.tp1) : (curLow <= cached.tp1);
 
-            // Confirmed Bar SL Check: Require close or confirmed bar breach to avoid 1-second wick noise
+            // Confirmed 5m Bar SL Check: Requires confirmed candle close beyond Swing Low SL level
             const isSlHit = isLong 
-              ? (confirmedBar.close <= cached.sl || curClose <= cached.sl)
-              : (confirmedBar.close >= cached.sl || curClose >= cached.sl);
+              ? (confirmedBar.close <= cached.sl)
+              : (confirmedBar.close >= cached.sl);
 
             const pnlPct = isLong 
               ? ((curClose - cached.entry) / cached.entry) * 100
@@ -5086,13 +5102,19 @@ class ScalperApp {
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
           if (bodyRatio < 0.45) return null; // Reject thin doji traps (require decisive body)
 
-          // 6. Deep 35% Pullback Entry & Expanded 3.0x ATR Stop Loss Protection
+          // 6. Deep 35% Pullback Entry & Technical Swing Low/High Structure Stop Loss Protection
           const candleRange = confirmedBar.high - confirmedBar.low;
           const entry = (dir === 'LONG') 
             ? confirmedBar.close - (candleRange * 0.35)
             : confirmedBar.close + (candleRange * 0.35);
 
-          const sl = (dir === 'SHORT') ? entry + (atr * 3.0) : entry - (atr * 3.0);
+          // Structure SL: Placed safely beyond actual 20-candle Swing Low (LONG) or Swing High (SHORT)
+          const swingLow20 = Math.min(...candles.slice(-22, -2).map(c => c.low));
+          const swingHigh20 = Math.max(...candles.slice(-22, -2).map(c => c.high));
+
+          const sl = (dir === 'LONG')
+            ? Math.min(entry - (atr * 2.5), swingLow20 - (atr * 0.5))
+            : Math.max(entry + (atr * 2.8), swingHigh20 + (atr * 0.5));
           const risk = Math.abs(entry - sl);
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
           const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
@@ -5249,11 +5271,13 @@ class ScalperApp {
       if (activePrimeInCache) {
         topPickSymbol = activePrimeInCache.symbol;
       } else {
+        // Ultra-High Conviction Prime Candidates Gate (Score >= 88, Orderflow >= 65%, Positive OI Influx)
         const primeCandidates = topSetups.filter(s => 
           s.status !== 'SL_HIT' && 
           !s.shouldExit && 
-          (s.score || 0) >= 85 &&
-          (s.dir === 'LONG' ? ((s.orderFlowBuyPct || 50) >= 60.0) : ((s.orderFlowBuyPct || 50) <= 40.0))
+          (s.score || 0) >= 88 &&
+          (s.oiChangePct || 0) >= 0.5 &&
+          (s.dir === 'LONG' ? ((s.orderFlowBuyPct || 50) >= 65.0) : ((s.orderFlowBuyPct || 50) <= 35.0))
         );
         if (primeCandidates.length > 0) {
           primeCandidates.sort((a, b) => {
