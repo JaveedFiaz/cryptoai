@@ -5281,11 +5281,36 @@ class ScalperApp {
           const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
           if (bodyRatio < 0.45) return null; // Reject thin doji traps (require decisive body)
 
-          // 6. Deep 35% Pullback Entry & Technical Swing Low/High Structure Stop Loss Protection
+          // 6. Quantitative Strategy Engine Classification & Dynamic Strategy Entry Level
+          let strategyType = 'MULTI_TIMEFRAME_MOMENTUM';
+          let strategyLabel = '🌊 MTF TREND CONTINUATION';
+
+          if (engineAnalysis && engineAnalysis.latest && engineAnalysis.latest.liquiditySweep && engineAnalysis.latest.liquiditySweep.isSweep) {
+            strategyType = 'LIQUIDITY_SWEEP';
+            strategyLabel = '🚀 INST. LIQUIDITY SWEEP & REVERSAL';
+          } else if (distToHigh20 < 0.3 || distToLow20 < 0.3) {
+            strategyType = 'STRUCTURE_BREAKOUT';
+            strategyLabel = '⚡ MARKET STRUCTURE BREAKOUT (CHoCH)';
+          } else if (isBigMoveBrewing) {
+            strategyType = 'SQUEEZE_EXPANSION';
+            strategyLabel = '🔥 PRE-BREAKOUT VOLATILITY SQUEEZE';
+          } else if (orderFlowBuyPct >= 66 || orderFlowBuyPct <= 34) {
+            strategyType = 'ORDERFLOW_SWEEP';
+            strategyLabel = '🐋 INSTITUTIONAL TAKER SWEEP';
+          }
+
           const candleRange = confirmedBar.high - confirmedBar.low;
-          const entry = (dir === 'LONG') 
-            ? confirmedBar.close - (candleRange * 0.35)
-            : confirmedBar.close + (candleRange * 0.35);
+          let entry = confirmedBar.close;
+
+          if (strategyType === 'LIQUIDITY_SWEEP') {
+            entry = (dir === 'LONG') ? (confirmedBar.low + atr * 0.15) : (confirmedBar.high - atr * 0.15);
+          } else if (strategyType === 'STRUCTURE_BREAKOUT') {
+            entry = (dir === 'LONG') ? prev20High : prev20Low;
+          } else if (strategyType === 'SQUEEZE_EXPANSION') {
+            entry = (dir === 'LONG') ? confirmedBar.close - (candleRange * 0.25) : confirmedBar.close + (candleRange * 0.25);
+          } else {
+            entry = (dir === 'LONG') ? (ema20 || (confirmedBar.close - candleRange * 0.2)) : (ema20 || (confirmedBar.close + candleRange * 0.2));
+          }
 
           // Structure SL: Placed safely beyond actual 20-candle Swing Low (LONG) or Swing High (SHORT)
           const swingLow20 = Math.min(...candles.slice(-22, -2).map(c => c.low));
@@ -5370,6 +5395,8 @@ class ScalperApp {
             oiChangePct,
             oiValueUSD,
             dir,
+            strategyType,
+            strategyLabel,
             entry,
             sl,
             tp1,
@@ -5430,9 +5457,13 @@ class ScalperApp {
         return (b.volRatio || 1) - (a.volRatio || 1);
       });
 
-      // Dynamic Card Slicing: Sniper Mode strictly caps to max 2 cards (1-3 trades/day), Momentum caps to 5 cards
+      // NO DISAPPEARANCE GUARANTEE: Lock active/in-progress trades so they are NEVER sliced off or removed!
+      const activeInFlightSetups = mergedSetups.filter(s => s.entryFilled || s.status === 'TP1_HIT' || s.status === 'TP2_HIT' || s.status === 'TP3_HIT' || s.status === 'RETRACEMENT');
+      const candidateSetups = mergedSetups.filter(s => !activeInFlightSetups.includes(s));
+
       const maxDisplayCards = (this.activeEngineMode === 'sniper') ? 2 : 5;
-      let topSetups = mergedSetups.slice(0, maxDisplayCards);
+      const candidateSlotsRemaining = Math.max(0, maxDisplayCards - activeInFlightSetups.length);
+      let topSetups = activeInFlightSetups.concat(candidateSetups.slice(0, candidateSlotsRemaining));
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) {
@@ -5678,9 +5709,12 @@ class ScalperApp {
               </div>
               ${whaleBadge}
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">
-              <span style="font-size:13px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
-              <span style="font-size:13px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:3px 8px; border-radius:4px; border:1px solid rgba(0,242,254,0.35); box-shadow:0 0 8px rgba(0,242,254,0.2);">🟢 LIVE $${fmtVal(curPrice)}</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; background:rgba(255,255,255,0.02); padding:5px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <span style="font-size:12px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ ${item.winProb}% Win Rate</span></span>
+                <span style="font-size:10.5px; font-weight:700; color:#00f2fe;">${item.strategyLabel || '🌊 MTF TREND CONTINUATION'}</span>
+              </div>
+              <span class="live-price-badge" style="font-size:13px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:3px 8px; border-radius:4px; border:1px solid rgba(0,242,254,0.35); box-shadow:0 0 8px rgba(0,242,254,0.2);">🟢 LIVE $${fmtVal(curPrice)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px 8px; border-radius:6px; margin:6px 0; font-size:11px;">
               <span style="color:var(--text-muted);">🐋 Taker Orderflow:</span>
