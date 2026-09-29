@@ -4756,6 +4756,11 @@ class ScalperApp {
         window.dispatchEvent(new Event('resize'));
       }, 50);
     } else if (tabId === 'memecoins' || tabId === 'terminal') {
+      if (tabId === 'memecoins') {
+        this.activeMemeCategory = 'bigmoves';
+      } else if (tabId === 'terminal' && this.activeMemeCategory === 'bigmoves') {
+        this.activeMemeCategory = 'memecoins';
+      }
       this.refreshMemeCoinTracker();
       this.memeScanInterval = setInterval(() => this.refreshMemeCoinTracker(true), 15000);
     } else if (tabId === 'scanner') {
@@ -4849,7 +4854,9 @@ class ScalperApp {
     // A slow network response must not overlap the next scheduled scan.
     if (this._memeScanInFlight) return;
     this._memeScanInFlight = true;
-    const container = document.getElementById('memecoin-cards-container');
+    const container = (this.activeView === 'memecoins' || this.activeMemeCategory === 'bigmoves')
+      ? (document.getElementById('whale-gainers-cards-container') || document.getElementById('memecoin-cards-container'))
+      : (document.getElementById('memecoin-cards-container') || document.getElementById('whale-gainers-cards-container'));
     const refreshBtn = document.getElementById('memecoin-refresh-btn');
     const statusPill = document.getElementById('memecoin-status');
 
