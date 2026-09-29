@@ -5656,13 +5656,19 @@ class ScalperApp {
 
         let cardContentHtml = '';
 
-        // If in Pre-Breakout Big Moves category, output pure Probability & Whale Metrics (No Entry/SL/TP boxes!)
+        // If in Pre-Breakout Big Moves category, output Honest Pre-Breakout Headings + Whale Metrics + FULL LIMIT ENTRY / SL / TP GRID!
         if (this.activeMemeCategory === 'bigmoves' || item.category === 'bigmoves') {
           const oiPct = item.oiChangePct || 0;
           const oiStatus = oiPct >= 0 ? `🟢 ACCUMULATION (+${oiPct.toFixed(1)}% OI Spiked)` : `🔴 DISTRIBUTION (${oiPct.toFixed(1)}% OI Drop)`;
+          const roiHeading = item.dir === 'LONG'
+            ? `🚀 PRE-BREAKOUT ACCUMULATION • Target +5.0% to +15.0% Move`
+            : `🩸 PRE-BREAKOUT DISTRIBUTION • Target -5.0% to -15.0% Move`;
           
           cardContentHtml = `
-            ${topPickBannerHtml}
+            <div style="background:linear-gradient(90deg, ${item.dir === 'LONG' ? '#00e676, #00b0ff' : '#ff3b30, #ff9100'}); color:#000; font-weight:900; font-size:11px; padding:5px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,242,254,0.3);">
+              ${roiHeading}
+            </div>
+
             <div class="setup-card-header">
               <div style="display:flex; align-items:center; gap:8px;">
                 <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
@@ -5672,35 +5678,34 @@ class ScalperApp {
               ${whaleBadge}
             </div>
             
-            <div class="bigmoves-radar-box" style="background:rgba(0, 242, 254, 0.05); border:1.5px solid rgba(0, 242, 254, 0.35); border-radius:8px; padding:12px; margin:10px 0; font-size:11.5px; backdrop-filter:blur(8px);">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
-                <span style="color:#00f2fe; font-weight:800; letter-spacing:0.5px;">🚀 BREAKOUT PROBABILITY SCORE:</span>
-                <strong style="color:#ffd700; font-size:13px; font-weight:900; background:rgba(255,215,0,0.15); padding:2px 8px; border-radius:4px; border:1px solid #ffd700;">⚡ ${cardScore}% CHANCE (${cardScore}/100)</strong>
+            <div class="bigmoves-radar-box" style="background:rgba(0, 242, 254, 0.05); border:1.5px solid rgba(0, 242, 254, 0.35); border-radius:8px; padding:10px; margin:8px 0; font-size:11px; backdrop-filter:blur(8px);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px;">
+                <span style="color:#00f2fe; font-weight:800; letter-spacing:0.5px;">⚡ BREAKOUT CONFLUENCE SCORE:</span>
+                <strong style="color:#ffd700; font-size:12px; font-weight:900; background:rgba(255,215,0,0.15); padding:2px 6px; border-radius:4px; border:1px solid #ffd700;">${cardScore}/99 CONFLUENCE</strong>
               </div>
-              <div style="display:flex; justify-content:space-between; margin:5px 0;">
-                <span style="color:var(--text-muted);">🐋 Whale Involvement (OI):</span>
+              <div style="display:flex; justify-content:space-between; margin:4px 0;">
+                <span style="color:var(--text-muted);">🐋 Open Interest (OI):</span>
                 <b style="color:${oiPct >= 0 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${oiStatus}</b>
               </div>
-              <div style="display:flex; justify-content:space-between; margin:5px 0;">
-                <span style="color:var(--text-muted);">🌊 Taker Buy/Sell Sweeps:</span>
-                <b style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${buyPctVal.toFixed(0)}% Buy Sweeps (${ratioVal.toFixed(1)}x Ratio)</b>
-              </div>
-              <div style="display:flex; justify-content:space-between; margin:5px 0;">
-                <span style="color:var(--text-muted);">🔥 Squeeze Volatility Range:</span>
-                <b style="color:#00f2fe; font-family:var(--font-mono);">${(item.squeezeRatio || 0.45).toFixed(2)}% (Tight Compression Range)</b>
-              </div>
-              <div style="display:flex; justify-content:space-between; margin:5px 0;">
-                <span style="color:var(--text-muted);">🎯 Liquidation Sweep Target:</span>
-                <b style="color:#ffd700; font-family:var(--font-mono);">${item.dir === 'LONG' ? 'Short Liquidation Sweep Above' : 'Long Liquidation Sweep Below'} ${fmtVal(curPrice * (item.dir === 'LONG' ? 1.08 : 0.92))}</b>
-              </div>
-              <div style="display:flex; justify-content:space-between; margin:5px 0;">
-                <span style="color:var(--text-muted);">📈 Projected Expansion:</span>
-                <b style="color:#00e676; font-family:var(--font-mono);">${item.projectedMove || 'Target +150% to +800%'}</b>
+              <div style="display:flex; justify-content:space-between; margin:4px 0;">
+                <span style="color:var(--text-muted);">🌊 Taker Sweeps:</span>
+                <b style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${buyPctVal.toFixed(0)}% Buy Sweeps (${ratioVal.toFixed(1)}x)</b>
               </div>
             </div>
 
-            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:40px; font-weight:800; background:linear-gradient(135deg, #00f2fe, #4facfe); border:none; color:#000; cursor:pointer; border-radius:6px; font-size:12px; box-shadow:0 0 12px rgba(0,242,254,0.3);">
-              🚀 View Live Whale Orderflow & Chart
+            ${exitAdvisoryHtml}
+
+            <!-- PRE-PUMP / PRE-DUMP LIMIT ENTRY, SL, AND TP1-3 TARGETS -->
+            <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:4px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:10.5px; margin-bottom:10px; text-align:center;">
+              <div><span style="color:var(--color-gold); font-weight:700;">PRE-ENTRY:</span> <b style="color:#fff;">${fmtVal(item.entry)}</b></div>
+              <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">${fmtVal(item.sl)}</b></div>
+              <div><span style="color:var(--text-muted);">TP1 (1:1):</span> <b style="color:#00e676;">${fmtVal(item.tp1)}</b></div>
+              <div><span style="color:var(--text-muted);">TP2 (1:2):</span> <b style="color:#00e676;">${fmtVal(item.tp2)}</b></div>
+              <div><span style="color:var(--text-muted);">TP3 (1:3):</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
+            </div>
+
+            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:linear-gradient(135deg, ${dirColor}, #10141f); border:1px solid ${dirColor}; color:#fff; cursor:pointer; border-radius:6px; font-size:12px;">
+              ⚡ Set Pre-Breakout Limit Order & Chart
             </button>
           `;
         } else {
