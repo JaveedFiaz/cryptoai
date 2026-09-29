@@ -5381,15 +5381,15 @@ class ScalperApp {
           if (isBearish && orderFlowBuyPct <= 40.0) score += 15;
 
           // Blend with ScalperEngine score if available
-          if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL')) {
-            score = Math.round((score + (engineSig.score100 || 0)) / 2);
+          if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL') && engineSig.score100 > 0) {
+            score = Math.round((score + engineSig.score100) / 2);
           }
 
           score = Math.min(99, Math.max(0, Math.round(score)));
 
           // Dynamic Confluence Cutoff Gate based on Active Engine Mode
           const isSniperMode = (this.activeEngineMode === 'sniper');
-          const minScoreThreshold = isSniperMode ? 90 : 85;
+          const minScoreThreshold = isSniperMode ? 88 : 78;
           if (score < minScoreThreshold) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
@@ -5399,7 +5399,7 @@ class ScalperApp {
           const isParabolicMovers = (change24h >= 10.0) || (squeezeRatio < 0.70) || (volRatio >= 2.0);
           const isTopGainer = change24h >= 15.0;
 
-          const isPreBreakoutBigMove = isBigMoveBrewing || (squeezeRatio < 0.85 && (orderFlowBuyPct >= 56 || orderFlowBuyPct <= 44 || volRatio >= 1.15)) || isParabolicMovers;
+          const isPreBreakoutBigMove = isBigMoveBrewing || (squeezeRatio < 1.25 && (orderFlowBuyPct >= 54 || orderFlowBuyPct <= 46 || volRatio >= 1.05)) || isParabolicMovers || score >= 78;
           if (this.activeMemeCategory === 'bigmoves' && !isPreBreakoutBigMove) {
             return null; // In Big Moves tab, filter strictly for coiled setups before breakout
           }
