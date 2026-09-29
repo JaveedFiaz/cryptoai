@@ -59,16 +59,16 @@ class ScalperEngine {
       
       minBuyScore: 6,
       minSellScore: 6,
-      autoTradeMinScore: 85,
-      signalCooldown: 4,
+      autoTradeMinScore: 80,
+      signalCooldown: 6,
       
-      slMethod: 'ATR', // 'ATR' or 'SWING'
+      slMethod: 'SWING', // 'ATR' or 'SWING'
       atrSlMult: 1.5,
       swingBars: 7,
       tp1RMult: 1.0,
       tp2RMult: 2.0,
       tp3RMult: 3.0,
-      minAcceptableRR: 1.2,
+      minAcceptableRR: 2.0,
       enableTrailing: true,
       trailAtrMult: 1.5
     }, options);
@@ -632,7 +632,7 @@ class ScalperEngine {
         bScore100 = bScoreDetails.score;
       }
 
-      const rawBuy = isMarketTradeable && htfBullish && (bScore >= this.options.minBuyScore) && (longRR >= this.options.minAcceptableRR);
+      const rawBuy = isMarketTradeable && htfBullish && (bScore100 >= (this.options.autoTradeMinScore || 80)) && (longRR >= (this.options.minAcceptableRR || 2.0));
       const validBuy = rawBuy && (barsSinceLast >= this.options.signalCooldown) && (activeDirection !== 1);
 
       if (validBuy) {
@@ -683,7 +683,7 @@ class ScalperEngine {
         sScore100 = sScoreDetails.score;
       }
 
-      const rawSell = isMarketTradeable && htfBearish && (sScore >= this.options.minSellScore) && (shortRR >= this.options.minAcceptableRR);
+      const rawSell = isMarketTradeable && htfBearish && (sScore100 >= (this.options.autoTradeMinScore || 80)) && (shortRR >= (this.options.minAcceptableRR || 2.0));
       const validSell = rawSell && (barsSinceLast >= this.options.signalCooldown) && (activeDirection !== -1);
 
       if (validSell) {
