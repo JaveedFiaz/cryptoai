@@ -5048,18 +5048,8 @@ class ScalperApp {
       }
     } catch (e) {}
 
-    let targetSymbols = memeSymbols;
-    if (this.activeMemeCategory === 'highcap') {
-      targetSymbols = highCapSymbols;
-    } else if (this.activeMemeCategory === 'bigmoves') {
-      const heavyHighCapCoins = new Set([
-        'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 
-        'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'NEARUSDT', 'DOTUSDT', 
-        'SUIUSDT', 'LTCUSDT', 'UNIUSDT', 'APTUSDT', 'ARBUSDT', 
-        'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT', 'TIAUSDT'
-      ]);
-      targetSymbols = Array.from(new Set([...preBreakoutMovers, ...dynamicTopGainers])).filter(s => !heavyHighCapCoins.has(s));
-    }
+    const allSymbols = Array.from(new Set([...memeSymbols, ...highCapSymbols, ...preBreakoutMovers, ...dynamicTopGainers]));
+    let targetSymbols = allSymbols;
     const now = Date.now();
 
     // 0. Check Overall Bitcoin Market Regime
@@ -5139,27 +5129,14 @@ class ScalperApp {
             const curHigh = latestBar.high;
             const isLong = cached.dir === 'LONG';
 
-            // Orderflow Alignment Check: If trade entry is NOT filled yet and live orderflow turns opposing, invalidate pending proposal!
-            if (!cached.entryFilled && cached.status !== 'TP1_HIT' && cached.status !== 'TP2_HIT' && cached.status !== 'TP3_HIT') {
-              const isOrderflowOpposing = isLong ? (orderFlowBuyPct < 50.0) : (orderFlowBuyPct > 50.0);
-              if (isOrderflowOpposing) {
-                delete this.memeSignalsCache[symbol];
-                this.saveMemeCache();
-                // Fallthrough to full re-evaluation
-              } else {
-                // Continue with cached filled or aligned trade logic
+            // Lock Trade Setup Retention: Once generated, keep setup locked until SL hit, TP3 hit, or 4h expiration
+            if (!cached.entryFilled) {
+              const isFilled = isLong ? (curLow <= cached.entry) : (curHigh >= cached.entry);
+              if (isFilled) {
+                cached.entryFilled = true;
+                cached.entryFillTime = now;
               }
             }
-
-            if (this.memeSignalsCache[symbol]) {
-              // Check if price has filled limit entry level yet
-              if (!cached.entryFilled) {
-                const isFilled = isLong ? (curLow <= cached.entry) : (curHigh >= cached.entry);
-                if (isFilled) {
-                  cached.entryFilled = true;
-                  cached.entryFillTime = now;
-                }
-              }
 
             // Trailing Stop Loss & Auto-Breakeven Lock: Once TP1/TP2 hit, protect profits!
             if (isLong) {
@@ -5222,7 +5199,6 @@ class ScalperApp {
 
             this.saveMemeCache();
             return cached;
-          }
           }
 
           // 2. Full 8-Factor ScalperEngine & Technical Calculations
@@ -5460,8 +5436,6 @@ class ScalperApp {
       // Gather active & completed setups STRICTLY matching targetSymbols for the active category tab
       const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
         if (!sig) return false;
-        // Strictly require symbol to belong to current active category's targetSymbols
-        if (!targetSymbols.includes(sig.symbol)) return false;
         if (sig.status === 'SL_HIT') {
           return (now - (sig.slHitTime || now)) < 7200000;
         }
@@ -5487,13 +5461,8 @@ class ScalperApp {
         return (b.volRatio || 1) - (a.volRatio || 1);
       });
 
-      // NO DISAPPEARANCE GUARANTEE: Lock active/in-progress trades so they are NEVER sliced off or removed!
-      const activeInFlightSetups = mergedSetups.filter(s => s.entryFilled || s.status === 'TP1_HIT' || s.status === 'TP2_HIT' || s.status === 'TP3_HIT' || s.status === 'RETRACEMENT');
-      const candidateSetups = mergedSetups.filter(s => !activeInFlightSetups.includes(s));
-
-      const maxDisplayCards = (this.activeEngineMode === 'sniper') ? 2 : 5;
-      const candidateSlotsRemaining = Math.max(0, maxDisplayCards - activeInFlightSetups.length);
-      let topSetups = activeInFlightSetups.concat(candidateSetups.slice(0, candidateSlotsRemaining));
+      // PERMANENT ZERO DISAPPEARANCE: Display ALL active, in-flight, and high-confluence candidate setups
+      let topSetups = mergedSetups;
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) {
