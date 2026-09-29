@@ -4771,9 +4771,10 @@ class ScalperApp {
         localStorage.removeItem('crypto_scalper_meme_cache_v3');
         localStorage.removeItem('crypto_scalper_meme_cache_v4');
         localStorage.removeItem('crypto_scalper_meme_cache_v5');
+        localStorage.removeItem('crypto_scalper_meme_cache_v6');
         localStorage.removeItem('crypto_scalper_meme_signals_v2');
 
-        const raw = localStorage.getItem('crypto_scalper_meme_cache_v6');
+        const raw = localStorage.getItem('crypto_scalper_meme_cache_v7');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object') {
@@ -4781,11 +4782,14 @@ class ScalperApp {
             const cleaned = {};
             for (const sym in parsed) {
               const item = parsed[sym];
-              // Auto-purge old saturated cards, SL_HIT, or invalidated trades!
-              if (item && (now - (item.time || 0)) < 14400000) {
+              // Purge old cards, SL_HIT, or un-filled trades older than 1 hour!
+              if (item && (now - (item.time || 0)) < 7200000) {
                 if (item.status !== 'SL_HIT' && !item.shouldExit) {
-                  item.score = Math.min(99, Math.max(50, Math.round(item.score || 85)));
-                  cleaned[sym] = item;
+                  const s = Math.min(99, Math.max(0, Math.round(item.score || 0)));
+                  if (s >= 85) {
+                    item.score = s;
+                    cleaned[sym] = item;
+                  }
                 }
               }
             }
@@ -4800,7 +4804,7 @@ class ScalperApp {
   saveMemeCache() {
     try {
       if (typeof localStorage !== 'undefined' && this.memeSignalsCache) {
-        localStorage.setItem('crypto_scalper_meme_cache_v6', JSON.stringify(this.memeSignalsCache));
+        localStorage.setItem('crypto_scalper_meme_cache_v7', JSON.stringify(this.memeSignalsCache));
       }
     } catch (e) {}
   }
@@ -5128,14 +5132,27 @@ class ScalperApp {
             const curHigh = latestBar.high;
             const isLong = cached.dir === 'LONG';
 
-            // Check if price has filled limit entry level yet
-            if (!cached.entryFilled) {
-              const isFilled = isLong ? (curLow <= cached.entry) : (curHigh >= cached.entry);
-              if (isFilled) {
-                cached.entryFilled = true;
-                cached.entryFillTime = now;
+            // Orderflow Alignment Check: If trade entry is NOT filled yet and live orderflow turns opposing, invalidate pending proposal!
+            if (!cached.entryFilled && cached.status !== 'TP1_HIT' && cached.status !== 'TP2_HIT' && cached.status !== 'TP3_HIT') {
+              const isOrderflowOpposing = isLong ? (orderFlowBuyPct < 50.0) : (orderFlowBuyPct > 50.0);
+              if (isOrderflowOpposing) {
+                delete this.memeSignalsCache[symbol];
+                this.saveMemeCache();
+                // Fallthrough to full re-evaluation
+              } else {
+                // Continue with cached filled or aligned trade logic
               }
             }
+
+            if (this.memeSignalsCache[symbol]) {
+              // Check if price has filled limit entry level yet
+              if (!cached.entryFilled) {
+                const isFilled = isLong ? (curLow <= cached.entry) : (curHigh >= cached.entry);
+                if (isFilled) {
+                  cached.entryFilled = true;
+                  cached.entryFillTime = now;
+                }
+              }
 
             // Trailing Stop Loss & Auto-Breakeven Lock: Once TP1/TP2 hit, protect profits!
             if (isLong) {
@@ -5198,6 +5215,7 @@ class ScalperApp {
 
             this.saveMemeCache();
             return cached;
+          }
           }
 
           // 2. Full 8-Factor ScalperEngine & Technical Calculations
