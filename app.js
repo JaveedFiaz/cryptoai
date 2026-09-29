@@ -5055,8 +5055,10 @@ class ScalperApp {
     }
     const now = Date.now();
 
-    // 0. Check Overall Bitcoin Market Regime
+    // 0. Check Overall Bitcoin Market Regime & Active 5m Impulse
     let btcTrend = 'NEUTRAL';
+    let isBtcDumping = false;
+    let isBtcPumping = false;
     try {
       const btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=5m&limit=50`);
       if (btcRes.ok) {
@@ -5065,8 +5067,16 @@ class ScalperApp {
           const btcCloses = btcKlines.map(k => parseFloat(k[4]));
           const btcEma20 = this.calcEMA(btcCloses, 20);
           const btcLatest = btcCloses[btcCloses.length - 1];
-          if (btcEma20) {
-            btcTrend = btcLatest > btcEma20 ? 'BULLISH' : 'BEARISH';
+          const btcRef = btcCloses[btcCloses.length - 6] || btcCloses[0];
+          const btcMovePct = ((btcLatest - btcRef) / btcRef) * 100;
+
+          if (btcLatest < btcEma20 || btcMovePct <= -0.20) {
+            isBtcDumping = true;
+            btcTrend = 'BEARISH';
+          }
+          if (btcLatest > btcEma20 || btcMovePct >= 0.20) {
+            isBtcPumping = true;
+            btcTrend = 'BULLISH';
           }
         }
       }
@@ -5241,9 +5251,9 @@ class ScalperApp {
           const distToHigh20 = Math.abs(confirmedBar.close - prev20High) / prev20High * 100;
           const distToLow20 = Math.abs(confirmedBar.close - prev20Low) / prev20Low * 100;
 
-          // 4. Directional Breakout Verification with Institutional Taker Orderflow (>= 62.0%) & BTC Alignment
-          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 62.0) && (distToHigh20 > 0.15) && (btcTrend !== 'BEARISH' || orderFlowBuyPct >= 68.0);
-          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 38.0) && (distToLow20 > 0.15) && (btcTrend !== 'BULLISH' || orderFlowBuyPct <= 32.0);
+          // 4. Directional Breakout Verification with Institutional Taker Orderflow (>= 62.0%) & Mandatory BTC Dump Guard
+          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 62.0) && (distToHigh20 > 0.15) && (!isBtcDumping);
+          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 38.0) && (distToLow20 > 0.15) && (!isBtcPumping);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
