@@ -5251,9 +5251,15 @@ class ScalperApp {
           const distToHigh20 = Math.abs(confirmedBar.close - prev20High) / prev20High * 100;
           const distToLow20 = Math.abs(confirmedBar.close - prev20Low) / prev20Low * 100;
 
-          // 4. Directional Breakout Verification with Institutional Taker Orderflow (>= 62.0%) & Mandatory BTC Dump Guard
-          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 62.0) && (distToHigh20 > 0.15) && (!isBtcDumping);
-          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 38.0) && (distToLow20 > 0.15) && (!isBtcPumping);
+          // Decoupled / Independent Momentum Check:
+          // If an altcoin has EXTREME relative volume surge (RVOL >= 2.5x) and massive Taker Buy imbalance (>= 72.0%),
+          // it demonstrates strong independent momentum (moving opposite to BTC).
+          const isDecoupledBull = (volRatio >= 2.5) && (orderFlowBuyPct >= 72.0) && (totalMovePct >= 0.40);
+          const isDecoupledBear = (volRatio >= 2.5) && (orderFlowBuyPct <= 28.0) && (totalMovePct <= -0.40);
+
+          // 4. Directional Breakout Verification with Institutional Taker Orderflow (>= 62.0%) & BTC Dump Guard
+          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 62.0) && (distToHigh20 > 0.15) && (!isBtcDumping || isDecoupledBull);
+          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 38.0) && (distToLow20 > 0.15) && (!isBtcPumping || isDecoupledBear);
 
           const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
           if (dir === 'NEUTRAL') return null;
