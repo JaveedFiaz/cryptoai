@@ -5461,8 +5461,9 @@ class ScalperApp {
         return (b.volRatio || 1) - (a.volRatio || 1);
       });
 
-      // PERMANENT ZERO DISAPPEARANCE: Display ALL active, in-flight, and high-confluence candidate setups
-      let topSetups = mergedSetups;
+      // Display top 4 highest confluence setups maximum (or 2 in Sniper mode) for a clean focused UI
+      const maxDisplay = (this.activeEngineMode === 'sniper') ? 2 : 4;
+      let topSetups = mergedSetups.slice(0, maxDisplay);
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) {
@@ -5549,19 +5550,19 @@ class ScalperApp {
         if (isTopPick) {
           topPickBannerHtml = `
             <div style="background:linear-gradient(90deg, #ffd700, #ffaa00); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(255,215,0,0.4);">
-              🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE ACCURACY (${cardScore}/100)
+              🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE (${cardScore}/99)
             </div>
           `;
-        } else if (item.isParabolicMovers || item.isTopGainer) {
+        } else if (item.change24h >= 10.0) {
           topPickBannerHtml = `
-            <div style="background:linear-gradient(90deg, #ff0055, #ff5e00); color:#fff; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 10px rgba(255,0,85,0.4);">
-              🔥 100% - 1000% PARABOLIC POTENTIAL • DAY TOP GAINER (${item.change24h >= 0 ? '+' : ''}${(item.change24h || 0).toFixed(1)}% 24h)
+            <div style="background:linear-gradient(90deg, #ff0055, #ff5e00); color:#fff; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
+              ⚡ DAY TOP GAINER (${item.change24h >= 0 ? '+' : ''}${(item.change24h || 0).toFixed(1)}% 24h)
             </div>
           `;
         } else if (item.isPreBreakoutBigMove) {
           topPickBannerHtml = `
-            <div style="background:linear-gradient(90deg, #00f2fe, #4facfe); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,242,254,0.35);">
-              🚀 PRE-BREAKOUT SQUEEZE • COILED FOR BIG MOVE (${item.projectedMove || 'Target +3.5% - +8.0%'})
+            <div style="background:linear-gradient(90deg, #00f2fe, #4facfe); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
+              🚀 PRE-BREAKOUT VOLATILITY SQUEEZE (${item.projectedMove || 'Target +3.5% - +8.0%'})
             </div>
           `;
         }
