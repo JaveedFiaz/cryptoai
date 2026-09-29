@@ -5048,8 +5048,11 @@ class ScalperApp {
       }
     } catch (e) {}
 
-    const allSymbols = Array.from(new Set([...memeSymbols, ...highCapSymbols, ...preBreakoutMovers, ...dynamicTopGainers]));
-    let targetSymbols = allSymbols;
+    let targetSymbols = [...highCapSymbols, ...memeSymbols];
+    if (this.activeView === 'memecoins' || this.activeMemeCategory === 'bigmoves') {
+      const heavyHighCapCoins = new Set(highCapSymbols);
+      targetSymbols = Array.from(new Set([...preBreakoutMovers, ...dynamicTopGainers])).filter(s => !heavyHighCapCoins.has(s));
+    }
     const now = Date.now();
 
     // 0. Check Overall Bitcoin Market Regime
@@ -5436,6 +5439,7 @@ class ScalperApp {
       // Gather active & completed setups STRICTLY matching targetSymbols for the active category tab
       const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
         if (!sig) return false;
+        if (!targetSymbols.includes(sig.symbol)) return false;
         if (sig.status === 'SL_HIT') {
           return (now - (sig.slHitTime || now)) < 7200000;
         }
