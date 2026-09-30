@@ -2701,6 +2701,12 @@ class ScalperApp {
       if (!this.activeSignalBySymbol) this.activeSignalBySymbol = {};
       this.activeSignalBySymbol[cleanSym] = sigObj;
       this.activeSignal = sigObj;
+
+      if (this.memeSignalsCache && this.memeSignalsCache[cleanSym]) {
+        this.memeSignalsCache[cleanSym].isTaken = true;
+        this.saveMemeCache();
+      }
+
       this.updateHeroBanner(sigObj);
       this.renderTradingViewRiskRewardBox(sigObj);
 
@@ -5462,9 +5468,16 @@ class ScalperApp {
         }
       }));
 
-      // Gather active & completed setups STRICTLY matching targetSymbols for the active category tab
+      // Collect all active open position symbols & user-selected active trade symbols
+      const openPosSymbols = (this.positions || []).map(p => p.symbol);
+
+      // Gather active & completed setups from cache
       const liveCachedSetups = Object.values(this.memeSignalsCache || {}).filter(sig => {
         if (!sig) return false;
+        // CRITICAL FIX: ALWAYS retain active open positions and user-taken trades, regardless of category filters!
+        if (openPosSymbols.includes(sig.symbol) || sig.isTaken) {
+          return true;
+        }
         if (!targetSymbols.includes(sig.symbol)) return false;
         if (sig.status === 'SL_HIT') {
           return (now - (sig.slHitTime || now)) < 7200000;
@@ -5474,6 +5487,7 @@ class ScalperApp {
 
       const newlyFound = results.filter(Boolean);
       const setupMap = {};
+      
       // Active live trades in progress take top priority
       liveCachedSetups.forEach(sig => { setupMap[sig.symbol] = sig; });
       newlyFound.forEach(sig => {
@@ -5483,7 +5497,11 @@ class ScalperApp {
       });
       const mergedSetups = Object.values(setupMap);
 
-      mergedSetups.sort((a, b) => {
+      // CRITICAL FIX: Separate Active Open Trades from Candidate Setups
+      const activeOpenSetups = mergedSetups.filter(s => openPosSymbols.includes(s.symbol) || s.isTaken || s.isPrimeTrade);
+      const candidateSetups = mergedSetups.filter(s => !openPosSymbols.includes(s.symbol) && !s.isTaken && !s.isPrimeTrade);
+
+      candidateSetups.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         const aOf = a.dir === 'LONG' ? (a.orderFlowBuyPct || 50) : (100 - (a.orderFlowBuyPct || 50));
         const bOf = b.dir === 'LONG' ? (b.orderFlowBuyPct || 50) : (100 - (b.orderFlowBuyPct || 50));
@@ -5491,9 +5509,19 @@ class ScalperApp {
         return (b.volRatio || 1) - (a.volRatio || 1);
       });
 
-      // Display top 4 highest confluence setups maximum (or 2 in Sniper mode) for a clean focused UI
-      const maxDisplay = (this.activeEngineMode === 'sniper') ? 2 : 4;
-      let topSetups = mergedSetups.slice(0, maxDisplay);
+      const maxCandidates = (this.activeEngineMode === 'sniper') ? 2 : 4;
+      const topCandidates = candidateSetups.slice(0, maxCandidates);
+
+      // ALWAYS PIN ACTIVE OPEN TRADES FIRST, followed by top candidate setups!
+      let topSetups = [...activeOpenSetups, ...topCandidates];
+
+      // De-duplicate by symbol preserving order
+      const seenSetups = new Set();
+      topSetups = topSetups.filter(s => {
+        if (seenSetups.has(s.symbol)) return false;
+        seenSetups.add(s.symbol);
+        return true;
+      });
 
       if (refreshBtn) setTimeout(() => refreshBtn.classList.remove('rotating'), 600);
       if (!container) {
@@ -5511,13 +5539,12 @@ class ScalperApp {
       // Permanent Prime Trade Lock: Check if an active Prime Trade is locked for this category tab
       let topPickSymbol = null;
       const activePrimeInCache = Object.values(this.memeSignalsCache || {}).find(s => 
-        s.isPrimeTrade && targetSymbols.includes(s.symbol) && s.status !== 'SL_HIT' && !s.shouldExit && ((now - (s.time || 0)) < 14400000)
+        s.isPrimeTrade && s.status !== 'SL_HIT' && !s.shouldExit && ((now - (s.time || 0)) < 14400000)
       );
 
       if (activePrimeInCache) {
         topPickSymbol = activePrimeInCache.symbol;
       } else {
-        // Ultra-High Conviction Prime Candidates Gate (Score >= 88, Orderflow >= 65%, Positive OI Influx)
         const primeCandidates = topSetups.filter(s => 
           s.status !== 'SL_HIT' && 
           !s.shouldExit && 
@@ -5539,7 +5566,6 @@ class ScalperApp {
         }
       }
 
-      // Pin Top Pick setup to position #1 in grid
       if (topPickSymbol) {
         topSetups.sort((a, b) => {
           if (a.symbol === topPickSymbol) return -1;
@@ -5798,8 +5824,13 @@ class ScalperApp {
         card._memeSetup = item;
       });
 
-      // Remove cards for expired/closed setups
-      Object.values(existingCardsMap).forEach(c => c.remove());
+      // Remove cards for expired/closed setups (DO NOT remove cards for active open positions or taken trades!)
+      Object.entries(existingCardsMap).forEach(([cardSym, cardNode]) => {
+        if (openPosSymbols.includes(cardSym) || (cardNode._memeSetup && cardNode._memeSetup.isTaken)) {
+          return; // Pin active position cards!
+        }
+        cardNode.remove();
+      });
       this._memeScanInFlight = false;
     } catch (e) {
       if (container) container.innerHTML = `<div class="loading-state-box">Scanner error: ${e.message}</div>`;
