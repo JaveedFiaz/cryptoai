@@ -542,24 +542,26 @@ class ScalperEngine {
       sFactors.pa = isBearCandle && curClose < Math.min(curOpen, prevBar.close); if (sFactors.pa) sScore++;
       sFactors.breakout = isBearBreakout || bearRetest; if (sFactors.breakout) sScore++;
 
-      // Stop Loss calculations
+      // Stop Loss calculations with 2.5 ATR Maximum Cap
       let longSl, shortSl;
+      const maxAtrDist = curAtr * 2.5;
       if (this.options.slMethod === 'ATR') {
-        longSl = curClose - (curAtr * this.options.atrSlMult);
-        shortSl = curClose + (curAtr * this.options.atrSlMult);
+        longSl = curClose - (curAtr * Math.min(2.5, this.options.atrSlMult));
+        shortSl = curClose + (curAtr * Math.min(2.5, this.options.atrSlMult));
       } else {
         const lookbackLow = Math.min(...lows.slice(Math.max(0, i - this.options.swingBars), i + 1));
         const lookbackHigh = Math.max(...highs.slice(Math.max(0, i - this.options.swingBars), i + 1));
-        longSl = Math.min(curClose - (curAtr * 0.5), lookbackLow);
-        shortSl = Math.max(curClose + (curAtr * 0.5), lookbackHigh);
+        // Capped at 2.5 ATR max using Math.max for Longs and Math.min for Shorts
+        longSl = Math.max(lookbackLow - (curAtr * 0.5), curClose - maxAtrDist);
+        shortSl = Math.min(lookbackHigh + (curAtr * 0.5), curClose + maxAtrDist);
       }
 
       const longRiskDist = curClose - longSl;
-      const longTp2 = curClose + (longRiskDist * this.options.tp2RMult);
+      const longTp2 = curClose + (longRiskDist * (this.options.tp2RMult || 2.0));
       const longRR = longRiskDist > 0 ? (longTp2 - curClose) / longRiskDist : 0;
 
       const shortRiskDist = shortSl - curClose;
-      const shortTp2 = curClose - (shortRiskDist * this.options.tp2RMult);
+      const shortTp2 = curClose - (shortRiskDist * (this.options.tp2RMult || 2.0));
       const shortRR = shortRiskDist > 0 ? (curClose - shortTp2) / shortRiskDist : 0;
 
       // Trailing Stop Management for open trade

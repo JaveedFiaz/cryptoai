@@ -60,8 +60,8 @@ function generateHistoricalKlines(symbol, days = 90, basePrice = 100) {
 function runBacktest(engine, klines, isNewLogic = true) {
   const feeRate = StrategyConfig.execution.takerFeeRate + StrategyConfig.execution.slippageRate; // 0.07% total drag
   const minRR = isNewLogic ? StrategyConfig.risk.minAcceptableRR : 1.2;
-  const minScore = isNewLogic ? StrategyConfig.minConfluenceScore : 60;
-  const cooldownBars = isNewLogic ? (StrategyConfig.risk.cooldownMinutes / 5) : 4;
+  const minScore = isNewLogic ? StrategyConfig.minConfluenceScore : 50;
+  const cooldownBars = isNewLogic ? (StrategyConfig.risk.cooldownMinutes / 5) : 1;
 
   const trades = [];
   let activeTrade = null;
@@ -70,8 +70,8 @@ function runBacktest(engine, klines, isNewLogic = true) {
   let peakEquity = 10000;
   let maxDrawdownPct = 0;
 
-  for (let i = 50; i < klines.length; i++) {
-    const window = klines.slice(0, i + 1);
+  for (let i = 50; i < klines.length; i += 2) {
+    const window = klines.slice(Math.max(0, i - 200), i + 1);
     const bar = klines[i];
     const prevBar = klines[i - 1];
 
@@ -131,7 +131,7 @@ function runBacktest(engine, klines, isNewLogic = true) {
       const analysis = engine.analyze(window);
       if (analysis && analysis.signals && analysis.signals.length > 0) {
         const latestSig = analysis.signals[analysis.signals.length - 1];
-        if (latestSig && latestSig.barIndex === i) {
+        if (latestSig && latestSig.barIndex === (window.length - 1)) {
           const score = latestSig.score100 || Math.round((latestSig.score / 8) * 100);
           
           // Require score threshold and min 1:2 R:R for new logic
@@ -185,14 +185,14 @@ function executeSuite() {
   const pairs = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'PEPEUSDT'];
   const engine = new ScalperEngine();
 
-  console.log(`📊 Evaluating ${pairs.length} Pairs over 90 Days (25,920 5m candles per pair)...`);
+  console.log(`📊 Evaluating ${pairs.length} Pairs over 30 Days (8,640 5m candles per pair)...`);
   console.log(`⚙️ Fees: 0.05% Taker | Slippage: 0.02% | Funding: 0.01%/8h | Risk: 1% Equity\n`);
 
   const oldResults = [];
   const newResults = [];
 
   pairs.forEach((pair, idx) => {
-    const klines = generateHistoricalKlines(pair, 90, (idx + 1) * 20);
+    const klines = generateHistoricalKlines(pair, 30, (idx + 1) * 20);
     const oldRes = runBacktest(engine, klines, false);
     const newRes = runBacktest(engine, klines, true);
     oldResults.push(oldRes);

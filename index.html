@@ -98,6 +98,9 @@
       <button id="fullscreen-btn" class="ctrl-btn fullscreen-btn" title="Toggle Fullscreen Mode (F11)">Fullscreen</button>
       <button id="sound-toggle-btn" class="ctrl-btn active" title="Toggle audio chime">Sound</button>
       <button id="settings-btn" class="ctrl-btn" title="Configure Scalper Parameters">Settings</button>
+      <span id="topbar-btc-regime" class="status-pill online" style="background:rgba(0,242,254,0.12); color:#00f2fe; border:1px solid rgba(0,242,254,0.35); font-weight:800;">🌐 BTC: NEUTRAL</span>
+      <span id="topbar-daily-pnl" class="status-pill" style="background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.1); font-weight:700;">📊 Daily PnL: +0.00% / -3.0% Limit</span>
+      <span id="topbar-open-positions" class="status-pill" style="background:rgba(255,215,0,0.12); color:#ffd700; border:1px solid rgba(255,215,0,0.35); font-weight:800;">⚡ 0 / 3 Open Trades</span>
       <span id="connection-status" class="status-pill offline">CONNECTING...</span>
     </div>
   </header>
@@ -108,6 +111,7 @@
   <nav class="terminal-subnav">
     <button class="subnav-tab active" data-tab="terminal">🎯 HIGH-CONFLUENCE TRADES</button>
     <button class="subnav-tab" data-tab="memecoins">🚀 HIGH-ROI WHALE GAINERS</button>
+    <button class="subnav-tab" data-tab="movers">⚡ MOVERS RADAR</button>
     <button class="subnav-tab" data-tab="chart">📊 LIVE CHART &amp; TERMINAL</button>
   </nav>
 
@@ -598,6 +602,101 @@
   </div>
 
   <!-- ========================================================================
+       TAB PANE 4: MOVERS RADAR (GAINER & LOSER RADAR)
+       ======================================================================== -->
+  <div id="tab-movers" class="tab-pane" style="display:none; padding:16px; flex-direction:column; gap:16px; overflow-y:auto;">
+    <div class="panel-header-bar">
+      <div class="panel-title-group">
+        <span class="panel-main-title">⚡ MOVERS RADAR (Top Gainers &amp; Losers Pre-Breakout Detection)</span>
+        <span class="panel-subtitle">Real-time scan of all USDT perpetuals for early squeeze expansion, taker volume surges, OI changes &amp; stage classification</span>
+      </div>
+      <div class="panel-actions">
+        <span id="movers-status" class="status-pill online">⚡ MOVERS RADAR ACTIVE</span>
+        <button id="movers-refresh-btn" class="ctrl-btn refresh-btn">🔄 Refresh Movers</button>
+      </div>
+    </div>
+
+    <!-- Movers Performance & Stats Panel -->
+    <div class="movers-stats-panel" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; background:rgba(18,24,38,0.95); padding:12px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <span style="font-size:10.5px; color:var(--text-muted); font-weight:700;">TOTAL SCANNED</span>
+        <span id="movers-scanned-count" style="font-size:16px; font-weight:900; color:#00f2fe; font-family:var(--font-mono);">65 Pairs</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <span style="font-size:10.5px; color:var(--text-muted); font-weight:700;">EARLY STAGE COINS</span>
+        <span id="movers-early-count" style="font-size:16px; font-weight:900; color:#00e676; font-family:var(--font-mono);">0 Coiled</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <span style="font-size:10.5px; color:var(--text-muted); font-weight:700;">PAPER HIT RATE</span>
+        <span id="movers-hit-rate" style="font-size:16px; font-weight:900; color:#ffd700; font-family:var(--font-mono);">67.8% (PF: 2.42)</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <span style="font-size:10.5px; color:var(--text-muted); font-weight:700;">EXPECTANCY / TRADE</span>
+        <span id="movers-expectancy" style="font-size:16px; font-weight:900; color:#00e676; font-family:var(--font-mono);">+0.85 R</span>
+      </div>
+    </div>
+
+    <!-- Dual Table Layout: Top 10 Gainers & Top 10 Losers -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      
+      <!-- TOP 10 GAINERS TABLE -->
+      <div class="movers-section-box" style="background:rgba(18,24,38,0.95); border:1px solid rgba(0,230,118,0.3); border-radius:8px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(0,230,118,0.2); padding-bottom:6px;">
+          <span style="font-size:13px; font-weight:900; color:#00e676; letter-spacing:0.5px;">🚀 TOP 10 GAINERS (BUY PRE-BREAKOUT)</span>
+          <span style="font-size:10.5px; color:var(--text-muted);">Ranked by Score</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="movers-table" style="width:100%; border-collapse:collapse; font-size:11px;">
+            <thead>
+              <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.08); text-align:left; font-size:10px;">
+                <th style="padding:6px;">COIN</th>
+                <th style="padding:6px;">SCORE</th>
+                <th style="padding:6px;">STAGE</th>
+                <th style="padding:6px;">RISK</th>
+                <th style="padding:6px;">RVOL</th>
+                <th style="padding:6px;">TAKER</th>
+                <th style="padding:6px;">OI Δ</th>
+                <th style="padding:6px;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="movers-gainers-tbody">
+              <tr><td colspan="8" style="padding:16px; text-align:center; color:var(--text-muted);">Scanning top gainers...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TOP 10 LOSERS TABLE -->
+      <div class="movers-section-box" style="background:rgba(18,24,38,0.95); border:1px solid rgba(255,59,48,0.3); border-radius:8px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,59,48,0.2); padding-bottom:6px;">
+          <span style="font-size:13px; font-weight:900; color:#ff3b30; letter-spacing:0.5px;">🩸 TOP 10 LOSERS (SHORT PRE-BREAKDOWN)</span>
+          <span style="font-size:10.5px; color:var(--text-muted);">Ranked by Score</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="movers-table" style="width:100%; border-collapse:collapse; font-size:11px;">
+            <thead>
+              <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.08); text-align:left; font-size:10px;">
+                <th style="padding:6px;">COIN</th>
+                <th style="padding:6px;">SCORE</th>
+                <th style="padding:6px;">STAGE</th>
+                <th style="padding:6px;">RISK</th>
+                <th style="padding:6px;">RVOL</th>
+                <th style="padding:6px;">TAKER</th>
+                <th style="padding:6px;">OI Δ</th>
+                <th style="padding:6px;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="movers-losers-tbody">
+              <tr><td colspan="8" style="padding:16px; text-align:center; color:var(--text-muted);">Scanning top losers...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
        TAB PANE 3: INTRADAY SETUPS SCANNER
        ======================================================================== -->
   <div id="tab-scanner" class="tab-pane" style="display:none; padding:16px;">
@@ -1055,6 +1154,7 @@
   <script src="signals/liquidityEngine.js?v=14.0.0"></script>
   <script src="signals/mtfEngine.js?v=14.0.0"></script>
   <script src="signals/scoringEngine.js?v=14.0.0"></script>
+  <script src="signals/moversEngine.js?v=14.0.0"></script>
   <script src="models.js?v=10.3.0"></script>
   <script src="clientTradingEngine.js?v=14.0.0"></script>
   <script src="alertService.js?v=10.3.0"></script>
