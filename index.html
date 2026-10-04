@@ -637,7 +637,7 @@
     </div>
 
     <!-- Dual Table Layout: Top 10 Gainers & Top 10 Losers -->
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+    <div class="movers-dual-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
       
       <!-- TOP 10 GAINERS TABLE -->
       <div class="movers-section-box" style="background:rgba(18,24,38,0.95); border:1px solid rgba(0,230,118,0.3); border-radius:8px; padding:12px;">
@@ -886,21 +886,21 @@
        MOBILE BOTTOM NAVIGATION DOCK (VISIBLE ON MOBILE ONLY)
        ======================================================================== -->
   <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
-    <button class="mobile-nav-btn active" data-mobile-tab="chart">
-      <span class="mobile-nav-icon">📊</span>
-      <span class="mobile-nav-label">Chart</span>
+    <button class="mobile-nav-btn active" data-mobile-tab="terminal">
+      <span class="mobile-nav-icon">🎯</span>
+      <span class="mobile-nav-label">Trades</span>
+    </button>
+    <button class="mobile-nav-btn" data-mobile-tab="movers">
+      <span class="mobile-nav-icon">⚡</span>
+      <span class="mobile-nav-label">Movers</span>
     </button>
     <button class="mobile-nav-btn" data-mobile-tab="memecoins">
-      <span class="mobile-nav-icon">🔥</span>
-      <span class="mobile-nav-label">Meme Signals</span>
+      <span class="mobile-nav-icon">🚀</span>
+      <span class="mobile-nav-label">Whale ROI</span>
     </button>
-    <button class="mobile-nav-btn" data-mobile-tab="signals">
-      <span class="mobile-nav-icon">🔔</span>
-      <span class="mobile-nav-label">Signals</span>
-    </button>
-    <button class="mobile-nav-btn" data-mobile-tab="scanner">
-      <span class="mobile-nav-icon">🔍</span>
-      <span class="mobile-nav-label">Scanner</span>
+    <button class="mobile-nav-btn" data-mobile-tab="chart">
+      <span class="mobile-nav-icon">📊</span>
+      <span class="mobile-nav-label">Chart</span>
     </button>
   </nav>
 

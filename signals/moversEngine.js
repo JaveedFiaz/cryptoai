@@ -188,6 +188,65 @@
         totalScanned: analyzed.length
       };
     }
+
+    /**
+     * Dual-adapter: evaluateMarket accepting either an Object map or Array
+     * Returns mapped telemetry matching app.js expectations
+     */
+    evaluateMarket(tickerInput) {
+      let coinList = [];
+      if (Array.isArray(tickerInput)) {
+        coinList = tickerInput;
+      } else if (tickerInput && typeof tickerInput === 'object') {
+        coinList = Object.values(tickerInput);
+      }
+
+      const analyzed = coinList.map(c => {
+        const res = this.analyzeCoin(c);
+        if (!res) return null;
+        return {
+          ...res,
+          score: Math.max(res.gainerScore, res.loserScore),
+          takerPct: res.takerBuyPct || 50
+        };
+      }).filter(Boolean);
+
+      let alertTriggered = false;
+      let earlyCount = 0;
+
+      for (const item of analyzed) {
+        if (item.stage === 'EARLY') earlyCount++;
+        if (item.alertTriggered) alertTriggered = true;
+      }
+
+      const topGainers = analyzed
+        .slice()
+        .sort((a, b) => b.gainerScore - a.gainerScore || b.change24h - a.change24h)
+        .slice(0, 10)
+        .map(c => ({
+          ...c,
+          score: c.gainerScore,
+          takerPct: c.takerBuyPct
+        }));
+
+      const topLosers = analyzed
+        .slice()
+        .sort((a, b) => b.loserScore - a.loserScore || a.change24h - b.change24h)
+        .slice(0, 10)
+        .map(c => ({
+          ...c,
+          score: c.loserScore,
+          takerPct: c.takerSellPct
+        }));
+
+      return {
+        topGainers,
+        topLosers,
+        scannedCount: analyzed.length,
+        earlyCount,
+        alertTriggered
+      };
+    }
   }
 
   return MoversEngine;

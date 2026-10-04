@@ -56,14 +56,14 @@ const StrategyConfig = {
   // --- 5. Volatility & Microstructure Filters ---
   filters: {
     atrPeriod: 14,
-    minAtrPct: 0.002,               // Min 0.2% ATR to ensure volatility room for 1:2 R:R
+    minAtrPct: 0.0008,              // Min 0.08% ATR to ensure volatility room for 1:2 R:R
     maxAtrPct: 0.035,               // Max 3.5% ATR to skip chaotic wicks
     maxSlAtrMult: 2.5,              // Cap Stop Loss distance at 2.5x ATR maximum
     maxSpreadPct: 0.001,            // Max allowed spread (0.10%)
     minOrderBookDepthUsdt: 50000,   // Min $50,000 top-5 bid/ask liquidity depth
     maxFundingRatePct: 0.0012,      // 0.12% per 8h funding crowding threshold
-    sessionFilterEnabled: true,
-    highLiquidityHoursUTC: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    sessionFilterEnabled: false,    // 24/7 global crypto market participation
+    highLiquidityHoursUTC: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
   },
 
   // --- 6. Tab 4: MOVERS RADAR (Gainer / Loser Engine) Config ---

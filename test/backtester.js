@@ -183,7 +183,26 @@ function executeSuite() {
   console.log('========================================================================\n');
 
   const pairs = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'PEPEUSDT'];
-  const engine = new ScalperEngine();
+  const oldEngine = new ScalperEngine({
+    autoTradeMinScore: 50,
+    minAcceptableRR: 1.0,
+    slMethod: 'ATR',
+    atrSlMult: 1.5,
+    tp2RMult: 1.5,
+    use200EmaFilter: false,
+    useVwapFilter: false
+  });
+
+  const newEngine = new ScalperEngine({
+    autoTradeMinScore: StrategyConfig.minConfluenceScore || 80,
+    minAcceptableRR: StrategyConfig.risk.minAcceptableRR || 2.0,
+    slMethod: 'STRUCTURE',
+    tp1RMult: 1.0,
+    tp2RMult: 2.0,
+    tp3RMult: 3.0,
+    use200EmaFilter: true,
+    useVwapFilter: true
+  });
 
   console.log(`📊 Evaluating ${pairs.length} Pairs over 30 Days (8,640 5m candles per pair)...`);
   console.log(`⚙️ Fees: 0.05% Taker | Slippage: 0.02% | Funding: 0.01%/8h | Risk: 1% Equity\n`);
@@ -193,8 +212,8 @@ function executeSuite() {
 
   pairs.forEach((pair, idx) => {
     const klines = generateHistoricalKlines(pair, 30, (idx + 1) * 20);
-    const oldRes = runBacktest(engine, klines, false);
-    const newRes = runBacktest(engine, klines, true);
+    const oldRes = runBacktest(oldEngine, klines, false);
+    const newRes = runBacktest(newEngine, klines, true);
     oldResults.push(oldRes);
     newResults.push(newRes);
   });

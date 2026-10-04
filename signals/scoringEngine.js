@@ -123,30 +123,26 @@
       // -----------------------------------------------------------------------
       if (marketStructure) {
         if (isLong) {
-          if (marketStructure.structure === 'BULLISH_STRUCTURE') {
-            structureScore += 8;
-            reasons.push('Market Structure: Higher Highs & Higher Lows sequence');
+          if (marketStructure.structure === 'BULLISH_STRUCTURE' || (marketStructure.lastCHoCH && marketStructure.lastCHoCH.type === 'BULLISH_CHOCH')) {
+            structureScore += 10;
+            reasons.push(marketStructure.structure === 'BULLISH_STRUCTURE'
+              ? 'Market Structure: Higher Highs & Higher Lows sequence'
+              : (marketStructure.lastCHoCH ? marketStructure.lastCHoCH.description : 'Bullish CHoCH'));
           }
           if (marketStructure.lastBOS && marketStructure.lastBOS.type === 'BULLISH_BOS') {
-            structureScore += 7;
+            structureScore += 10;
             reasons.push(marketStructure.lastBOS.description);
-          }
-          if (marketStructure.lastCHoCH && marketStructure.lastCHoCH.type === 'BULLISH_CHOCH') {
-            structureScore += 8;
-            reasons.push(marketStructure.lastCHoCH.description);
           }
         } else if (isShort) {
-          if (marketStructure.structure === 'BEARISH_STRUCTURE') {
-            structureScore += 8;
-            reasons.push('Market Structure: Lower Highs & Lower Lows sequence');
+          if (marketStructure.structure === 'BEARISH_STRUCTURE' || (marketStructure.lastCHoCH && marketStructure.lastCHoCH.type === 'BEARISH_CHOCH')) {
+            structureScore += 10;
+            reasons.push(marketStructure.structure === 'BEARISH_STRUCTURE'
+              ? 'Market Structure: Lower Highs & Lower Lows sequence'
+              : (marketStructure.lastCHoCH ? marketStructure.lastCHoCH.description : 'Bearish CHoCH'));
           }
           if (marketStructure.lastBOS && marketStructure.lastBOS.type === 'BEARISH_BOS') {
-            structureScore += 7;
+            structureScore += 10;
             reasons.push(marketStructure.lastBOS.description);
-          }
-          if (marketStructure.lastCHoCH && marketStructure.lastCHoCH.type === 'BEARISH_CHOCH') {
-            structureScore += 8;
-            reasons.push(marketStructure.lastCHoCH.description);
           }
         }
       }

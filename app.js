@@ -785,13 +785,17 @@ class ScalperApp {
       b.classList.toggle('active', b.getAttribute('data-mobile-tab') === tab);
     });
 
-    document.body.classList.remove('mobile-tab-chart', 'mobile-tab-memecoins', 'mobile-tab-signals', 'mobile-tab-scanner');
+    document.body.classList.remove('mobile-tab-terminal', 'mobile-tab-movers', 'mobile-tab-chart', 'mobile-tab-memecoins', 'mobile-tab-signals', 'mobile-tab-scanner');
     document.body.classList.add(`mobile-tab-${tab}`);
 
-    if (tab === 'chart') {
-      this.switchSubnavTab('chart');
+    if (tab === 'terminal') {
+      this.switchSubnavTab('terminal');
+    } else if (tab === 'movers') {
+      this.switchSubnavTab('movers');
     } else if (tab === 'memecoins') {
       this.switchSubnavTab('memecoins');
+    } else if (tab === 'chart') {
+      this.switchSubnavTab('chart');
     } else if (tab === 'signals') {
       this.switchSubnavTab('chart');
       const sigTabBtn = document.querySelector('.tab-btn[data-tab="tab-signals"]');
@@ -4789,12 +4793,6 @@ class ScalperApp {
   loadMemeCache() {
     try {
       if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('crypto_scalper_meme_cache_v3');
-        localStorage.removeItem('crypto_scalper_meme_cache_v4');
-        localStorage.removeItem('crypto_scalper_meme_cache_v5');
-        localStorage.removeItem('crypto_scalper_meme_cache_v6');
-        localStorage.removeItem('crypto_scalper_meme_signals_v2');
-
         const raw = localStorage.getItem('crypto_scalper_meme_cache_v7');
         if (raw) {
           const parsed = JSON.parse(raw);
@@ -4803,14 +4801,27 @@ class ScalperApp {
             const cleaned = {};
             for (const sym in parsed) {
               const item = parsed[sym];
-              // Purge old cards, SL_HIT, or un-filled trades older than 1 hour!
-              if (item && (now - (item.time || 0)) < 7200000) {
-                if (item.status !== 'SL_HIT' && !item.shouldExit) {
-                  const s = Math.min(99, Math.max(0, Math.round(item.score || 0)));
-                  if (s >= 85) {
-                    item.score = s;
-                    cleaned[sym] = item;
-                  }
+              if (!item) continue;
+              const age = now - (item.time || 0);
+              // Active trades and taken positions: retain until explicitly closed
+              if (item.isTaken || (this.positions && this.positions.some(p => p.symbol === sym))) {
+                cleaned[sym] = item;
+                continue;
+              }
+              // SL_HIT cards: retain for 2 hours (7200000ms) for UI audit transparency
+              if (item.status === 'SL_HIT' || item.status === 'EXIT_BREAKEVEN') {
+                const slAge = now - (item.slHitTime || item.time || now);
+                if (slAge < 7200000) {
+                  cleaned[sym] = item;
+                }
+                continue;
+              }
+              // Active candidates: retain if younger than 2 hours and score >= 75
+              if (age < 7200000 && !item.shouldExit) {
+                const s = Math.min(99, Math.max(0, Math.round(item.score || 0)));
+                if (s >= 75) {
+                  item.score = s;
+                  cleaned[sym] = item;
                 }
               }
             }
@@ -5186,10 +5197,10 @@ class ScalperApp {
             const isTp2Hit = isLong ? (curHigh >= cached.tp2) : (curLow <= cached.tp2);
             const isTp1Hit = isLong ? (curHigh >= cached.tp1) : (curLow <= cached.tp1);
 
-            // Confirmed 5m Bar SL Check: Requires confirmed candle close beyond Swing Low SL level
+            // Responsive SL Check: Checks live low/high extremes as well as candle close to protect capital
             const isSlHit = isLong 
-              ? (confirmedBar.close <= cached.sl)
-              : (confirmedBar.close >= cached.sl);
+              ? (curLow <= cached.sl || confirmedBar.close <= cached.sl)
+              : (curHigh >= cached.sl || confirmedBar.close >= cached.sl);
 
             const pnlPct = isLong 
               ? ((curClose - cached.entry) / cached.entry) * 100
@@ -5200,23 +5211,46 @@ class ScalperApp {
             cached.orderFlowBuyPct = orderFlowBuyPct;
             cached.orderFlowRatio = orderFlowRatio;
 
-            if (isSlHit || cached.status === 'SL_HIT') {
-              cached.status = 'SL_HIT';
-              if (!cached.slHitTime) cached.slHitTime = now;
-              cached.shouldExit = true;
-              cached.exitReason = 'STOP LOSS HIT';
-            } else if (isTp3Hit) {
+            // Target Priority Hierarchy
+            if (isTp3Hit || cached.status === 'TP3_HIT') {
               cached.status = 'TP3_HIT';
+              cached.hitTP3 = true;
               cached.shouldExit = false;
-              cached.exitReason = 'ALL TARGETS HIT';
-            } else if (isTp2Hit) {
+              cached.exitReason = '🎯 ALL TARGETS REACHED (+3R)';
+            } else if (isTp2Hit || cached.status === 'TP2_HIT') {
               cached.status = 'TP2_HIT';
-            } else if (isTp1Hit) {
+              cached.hitTP2 = true;
+              cached.exitReason = '🟢 TP2 REACHED (+2R)';
+            } else if (isTp1Hit || cached.status === 'TP1_HIT') {
               cached.status = 'TP1_HIT';
+              cached.hitTP1 = true;
+              cached.exitReason = '🟢 TP1 REACHED (+1R)';
+            }
+
+            // Honest SL handling: If trade previously hit TP1/TP2 and stops out at BE, mark as BREAKEVEN profit
+            if (isSlHit) {
+              if (cached.hitTP1 || cached.status === 'TP1_HIT' || cached.status === 'TP2_HIT') {
+                cached.status = 'EXIT_BREAKEVEN';
+                if (!cached.slHitTime) cached.slHitTime = now;
+                cached.shouldExit = true;
+                cached.exitReason = '🛡️ PROFIT SECURED (Breakeven Exit)';
+              } else {
+                cached.status = 'SL_HIT';
+                if (!cached.slHitTime) cached.slHitTime = now;
+                cached.shouldExit = true;
+                cached.exitReason = 'STOP LOSS HIT';
+              }
             } else if (cached.status === 'TP1_HIT' || cached.status === 'TP2_HIT') {
               if ((isLong && curClose < cached.entry) || (!isLong && curClose > cached.entry)) {
                 cached.status = 'RETRACEMENT';
               }
+            }
+
+            // Expire pending limit entries if unfilled after 45 mins (2700000ms)
+            if (!cached.entryFilled && (now - (cached.time || 0)) > 2700000) {
+              delete this.memeSignalsCache[symbol];
+              this.saveMemeCache();
+              return null;
             }
 
             // Keep completed/SL cards on screen for 2 hours (7200000ms) for 100% UI transparency
@@ -5358,13 +5392,15 @@ class ScalperApp {
           const swingLow20 = Math.min(...candles.slice(-22, -2).map(c => c.low));
           const swingHigh20 = Math.max(...candles.slice(-22, -2).map(c => c.high));
 
+          // Stop Loss: Structure swing buffered by ATR, strictly capped at 2.5x ATR maximum
           const sl = (dir === 'LONG')
-            ? Math.min(entry - (atr * 2.5), swingLow20 - (atr * 0.5))
-            : Math.max(entry + (atr * 2.8), swingHigh20 + (atr * 0.5));
-          const risk = Math.abs(entry - sl);
-          const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
-          const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
-          const tp3 = (dir === 'SHORT') ? entry - (risk * 5.0) : entry + (risk * 5.0);
+            ? Math.max(swingLow20 - (atr * 0.5), entry - (atr * 2.5))
+            : Math.min(swingHigh20 + (atr * 0.5), entry + (atr * 2.5));
+          const risk = Math.max(Math.abs(entry - sl), atr * 0.8);
+          // High-Win-Rate Quant Targets: TP1 1.0R (bank profit & lock BE), TP2 2.0R, TP3 3.0R runner
+          const tp1 = (dir === 'SHORT') ? entry - (risk * 1.0) : entry + (risk * 1.0);
+          const tp2 = (dir === 'SHORT') ? entry - (risk * 2.0) : entry + (risk * 2.0);
+          const tp3 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
 
           // 7. LATE ENTRY GUARD
           const distToTp1 = Math.abs(latestBar.close - tp1);
@@ -5570,7 +5606,7 @@ class ScalperApp {
         topSetups.sort((a, b) => {
           if (a.symbol === topPickSymbol) return -1;
           if (b.symbol === topPickSymbol) return 1;
-          return (b.time || 0) - (a.time || 0);
+          return (b.score || 0) - (a.score || 0) || (b.time || 0) - (a.time || 0);
         });
       }
 
@@ -5791,7 +5827,7 @@ class ScalperApp {
               <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">${fmtVal(item.tp2)}</b></div>
               <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
             </div>
-            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
+            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
               ${isTopPick ? '🚀 EXECUTE #1 PRIME TRADE' : '⚡ View Chart & Signal'}
             </button>
           `;
@@ -5799,13 +5835,25 @@ class ScalperApp {
         const cardInnerHtml = cardContentHtml;
 
         const renderKey = `${cardStyle}|${cardInnerHtml}`;
+
+        const attachBtnListener = (cardEl) => {
+          const btn = cardEl.querySelector('.trade-meme-btn');
+          if (btn) {
+            btn.onclick = async () => {
+              const sym = cardEl.dataset.cardSymbol || btn.getAttribute('data-symbol') || item.symbol;
+              const tf = (cardEl._memeSetup && cardEl._memeSetup.timeframe) ? cardEl._memeSetup.timeframe : '5m';
+              await this.selectAndOpenTradeChart(sym, tf, cardEl._memeSetup);
+            };
+          }
+        };
+
         if (card) {
           // Avoid replacing a card's subtree when the scanner result is identical.
-          // This preserves paint stability and prevents duplicate click listeners.
           if (card.dataset.renderKey !== renderKey) {
             card.setAttribute('style', cardStyle);
             card.innerHTML = cardInnerHtml;
             card.dataset.renderKey = renderKey;
+            attachBtnListener(card);
           }
         } else {
           card = document.createElement('div');
@@ -5815,9 +5863,7 @@ class ScalperApp {
           card.innerHTML = cardInnerHtml;
           card.dataset.renderKey = renderKey;
           container.appendChild(card);
-          card.querySelector('.trade-meme-btn')?.addEventListener('click', async () => {
-            await this.selectAndOpenTradeChart(card.dataset.cardSymbol, '1m', card._memeSetup);
-          });
+          attachBtnListener(card);
         }
 
         delete existingCardsMap[item.symbol];
@@ -6017,7 +6063,8 @@ class ScalperApp {
     const startBal = (this.account && this.account.startingBalance) ? this.account.startingBalance : 10000;
     const currentEq = (this.account && this.account.equity) ? this.account.equity : startBal;
     const dailyPnL = ((currentEq - startBal) / startBal * 100).toFixed(2);
-    const dailyLimit = (typeof strategyConfig !== 'undefined' && strategyConfig.risk) ? strategyConfig.risk.dailyLossLimitPct : 3.0;
+    const stratCfg = (typeof StrategyConfig !== 'undefined') ? StrategyConfig : ((typeof strategyConfig !== 'undefined') ? strategyConfig : null);
+    const dailyLimit = (stratCfg && stratCfg.risk) ? (stratCfg.risk.maxDailyLossPct || stratCfg.risk.dailyLossLimitPct || 3.0) : 3.0;
 
     if (dailyPnlEl) {
       const pnlColor = dailyPnL >= 0 ? '#00e676' : (dailyPnL <= -dailyLimit ? '#ff3b30' : '#ffd700');
@@ -6026,7 +6073,7 @@ class ScalperApp {
     }
 
     const openCount = this.positions ? this.positions.length : 0;
-    const maxTrades = (typeof strategyConfig !== 'undefined' && strategyConfig.risk) ? strategyConfig.risk.maxConcurrentTrades : 3;
+    const maxTrades = (stratCfg && stratCfg.risk) ? (stratCfg.risk.maxConcurrentOpenTrades || stratCfg.risk.maxConcurrentTrades || 3) : 3;
 
     if (openPosEl) {
       openPosEl.textContent = `⚡ ${openCount} / ${maxTrades} Open Trades`;

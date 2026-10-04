@@ -377,6 +377,8 @@ class ScalperEngine {
     // Indicator vectors
     const fastEma = ScalperEngine.calcEMA(closes, this.options.fastEmaLen);
     const slowEma = ScalperEngine.calcEMA(closes, this.options.slowEmaLen);
+    const ema20 = ScalperEngine.calcEMA(closes, 20);
+    const ema50 = ScalperEngine.calcEMA(closes, 50);
     const trendEma = ScalperEngine.calcEMA(closes, this.options.trendEmaLen);
     const vwap = ScalperEngine.calcVWAP(bars);
     const rsi = ScalperEngine.calcRSI(closes, this.options.rsiLen);
@@ -440,6 +442,8 @@ class ScalperEngine {
       const curAtrSma = atrSma[i] || curAtr;
       const curFastEma = fastEma[i];
       const curSlowEma = slowEma[i];
+      const curEma20 = ema20[i];
+      const curEma50 = ema50[i];
       const curTrendEma = trendEma[i];
       const curVwap = vwap[i];
       const curRsi = rsi[i];
@@ -556,24 +560,52 @@ class ScalperEngine {
         shortSl = Math.min(lookbackHigh + (curAtr * 0.5), curClose + maxAtrDist);
       }
 
-      const longRiskDist = curClose - longSl;
-      const longTp2 = curClose + (longRiskDist * (this.options.tp2RMult || 2.0));
+      // Derive structural target from opposing swing resistance (Long) or swing support (Short)
+      let longTargetStruct = 0;
+      let shortTargetStruct = 0;
+      if (lastPivotHigh && lastPivotHigh > curClose) {
+        longTargetStruct = lastPivotHigh;
+      }
+      if (lastPivotLow && lastPivotLow < curClose) {
+        shortTargetStruct = lastPivotLow;
+      }
+
+      const longRiskDist = Math.max(0.0001, curClose - longSl);
+      const longTp2 = (longTargetStruct > curClose && (longTargetStruct - curClose) / longRiskDist >= 1.5)
+        ? longTargetStruct
+        : (curClose + (longRiskDist * (this.options.tp2RMult || 2.0)));
       const longRR = longRiskDist > 0 ? (longTp2 - curClose) / longRiskDist : 0;
 
-      const shortRiskDist = shortSl - curClose;
-      const shortTp2 = curClose - (shortRiskDist * (this.options.tp2RMult || 2.0));
+      const shortRiskDist = Math.max(0.0001, shortSl - curClose);
+      const shortTp2 = (shortTargetStruct > 0 && shortTargetStruct < curClose && (curClose - shortTargetStruct) / shortRiskDist >= 1.5)
+        ? shortTargetStruct
+        : (curClose - (shortRiskDist * (this.options.tp2RMult || 2.0)));
       const shortRR = shortRiskDist > 0 ? (curClose - shortTp2) / shortRiskDist : 0;
 
-      // Trailing Stop Management for open trade
-      if (this.options.enableTrailing && activeTrade) {
+      // Trailing Stop & Auto-Breakeven Protection for active trade
+      if (activeTrade) {
         if (activeTrade.direction === 1) {
-          if (curHigh > highWater) highWater = curHigh;
-          const candidateTrail = highWater - (curAtr * this.options.trailAtrMult);
-          if (candidateTrail > activeTrade.trail) activeTrade.trail = candidateTrail;
+          if (curHigh >= activeTrade.tp2) {
+            activeTrade.sl = Math.max(activeTrade.sl, activeTrade.tp1); // Lock TP1 profit
+          } else if (curHigh >= activeTrade.tp1) {
+            activeTrade.sl = Math.max(activeTrade.sl, activeTrade.entryPrice); // Lock Breakeven
+          }
+          if (this.options.enableTrailing) {
+            if (curHigh > highWater) highWater = curHigh;
+            const candidateTrail = highWater - (curAtr * this.options.trailAtrMult);
+            if (candidateTrail > activeTrade.trail) activeTrade.trail = candidateTrail;
+          }
         } else if (activeTrade.direction === -1) {
-          if (curLow < lowWater) lowWater = curLow;
-          const candidateTrail = lowWater + (curAtr * this.options.trailAtrMult);
-          if (candidateTrail < activeTrade.trail) activeTrade.trail = candidateTrail;
+          if (curLow <= activeTrade.tp2) {
+            activeTrade.sl = Math.min(activeTrade.sl, activeTrade.tp1); // Lock TP1 profit
+          } else if (curLow <= activeTrade.tp1) {
+            activeTrade.sl = Math.min(activeTrade.sl, activeTrade.entryPrice); // Lock Breakeven
+          }
+          if (this.options.enableTrailing) {
+            if (curLow < lowWater) lowWater = curLow;
+            const candidateTrail = lowWater + (curAtr * this.options.trailAtrMult);
+            if (candidateTrail < activeTrade.trail) activeTrade.trail = candidateTrail;
+          }
         }
       }
 
@@ -620,7 +652,7 @@ class ScalperEngine {
           side: 'BUY',
           price: curClose,
           candles: bars.slice(0, i + 1),
-          emas: { ema20: curFastEma, ema50: curSlowEma, ema200: curTrendEma },
+          emas: { ema20: curEma20, ema50: curEma50, ema200: curTrendEma },
           vwap: curVwap,
           rsi: curRsi,
           macd: { macd: curMacd, signal: curSig, hist: curHist },
@@ -671,7 +703,7 @@ class ScalperEngine {
           side: 'SELL',
           price: curClose,
           candles: bars.slice(0, i + 1),
-          emas: { ema20: curFastEma, ema50: curSlowEma, ema200: curTrendEma },
+          emas: { ema20: curEma20, ema50: curEma50, ema200: curTrendEma },
           vwap: curVwap,
           rsi: curRsi,
           macd: { macd: curMacd, signal: curSig, hist: curHist },
