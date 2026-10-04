@@ -5211,6 +5211,17 @@ class ScalperApp {
             cached.orderFlowBuyPct = orderFlowBuyPct;
             cached.orderFlowRatio = orderFlowRatio;
 
+            // Dynamic Orderflow Quality Verification
+            cached.isWhaleAccumulating = (orderFlowBuyPct >= 58.0);
+            cached.isWhaleDistributing = (orderFlowBuyPct <= 42.0);
+
+            // Flag hostile flow when market orders aggressively oppose the position
+            const isHostileFlow = isLong ? (orderFlowBuyPct < 45.0) : (orderFlowBuyPct > 55.0);
+            cached.isHostileFlow = isHostileFlow;
+            if (isHostileFlow && cached.isPrimeTrade) {
+              cached.isPrimeTrade = false; // Strip Prime badge if orderflow breaks
+            }
+
             // Target Priority Hierarchy
             if (isTp3Hit || cached.status === 'TP3_HIT') {
               cached.status = 'TP3_HIT';
@@ -5575,7 +5586,7 @@ class ScalperApp {
       // Permanent Prime Trade Lock: Check if an active Prime Trade is locked for this category tab
       let topPickSymbol = null;
       const activePrimeInCache = Object.values(this.memeSignalsCache || {}).find(s => 
-        s.isPrimeTrade && s.status !== 'SL_HIT' && !s.shouldExit && ((now - (s.time || 0)) < 14400000)
+        s.isPrimeTrade && s.status !== 'SL_HIT' && !s.shouldExit && !s.isHostileFlow && ((now - (s.time || 0)) < 14400000)
       );
 
       if (activePrimeInCache) {
@@ -5631,7 +5642,7 @@ class ScalperApp {
       topSetups.forEach(item => {
         let card = existingCardsMap[item.symbol];
         const dirColor = item.dir === 'LONG' ? '#00e676' : '#ff3b30';
-        const isTopPick = (item.isPrimeTrade || item.symbol === topPickSymbol) && (item.status !== 'SL_HIT') && (!item.shouldExit);
+        const isTopPick = (item.isPrimeTrade || item.symbol === topPickSymbol) && (item.status !== 'SL_HIT') && (!item.shouldExit) && (!item.isHostileFlow);
         const cardScore = Math.min(99, Math.max(50, Math.round(item.score || 85)));
 
         let cardStyle = isTopPick
@@ -5660,13 +5671,16 @@ class ScalperApp {
         }
         
         let whaleBadge = '';
-        if (item.isWhaleAccumulating) {
+        if (item.isHostileFlow) {
+          const opposedPct = item.dir === 'LONG' ? (100 - (item.orderFlowBuyPct || 50)) : (item.orderFlowBuyPct || 50);
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.25); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">⚠️ HOSTILE FLOW (${opposedPct.toFixed(0)}% Dump Pressure)</span>`;
+        } else if (item.isWhaleAccumulating && (item.orderFlowBuyPct || 50) >= 58.0) {
           whaleBadge = `<span class="setup-badge" style="background:rgba(0,230,118,0.2); color:#00e676; font-weight:800; border:1px solid #00e676;">🚀 WHALE ACCUMULATION BREWING (${(item.orderFlowBuyPct || 50).toFixed(0)}% Buy)</span>`;
-        } else if (item.isWhaleDistributing) {
+        } else if (item.isWhaleDistributing && (item.orderFlowBuyPct || 50) <= 42.0) {
           whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">🩸 WHALE DISTRIBUTION BREWING (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Sell)</span>`;
-        } else if ((item.orderFlowRatio || 1) >= 1.75) {
+        } else if ((item.orderFlowRatio || 1) >= 1.5 && (item.orderFlowBuyPct || 50) >= 55.0) {
           whaleBadge = `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 INST. BUY SWEEP (${(item.orderFlowBuyPct || 50).toFixed(0)}% Taker)</span>`;
-        } else if ((item.orderFlowRatio || 1) <= 0.55) {
+        } else if ((item.orderFlowRatio || 1) <= 0.65 && (item.orderFlowBuyPct || 50) <= 45.0) {
           whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800;">🩸 INST. SELL DUMP (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Taker)</span>`;
         } else if (item.isBigMoveBrewing) {
           whaleBadge = `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${(item.volRatio || 1).toFixed(1)}x</span>`;
@@ -5717,7 +5731,9 @@ class ScalperApp {
             `;
           } else {
             let statusTag = '🟢 TRADE ACTIVE & INTACT';
-            if (isLong) {
+            if (item.isHostileFlow) {
+              statusTag = '⚠️ HOSTILE FLOW (Aggressive Dumping • Protect Profit / Tighten Stop)';
+            } else if (isLong) {
               if (curPrice < item.entry) {
                 statusTag = '⚡ DISCOUNT ZONE (Retest Support)';
               } else if (curPrice > item.entry) {
