@@ -109,28 +109,28 @@
        INSTITUTIONAL NAVIGATION SUB-TABS
        ======================================================================== -->
   <nav class="terminal-subnav">
-    <button class="subnav-tab active" data-tab="terminal">🎯 HIGH-CONFLUENCE TRADES</button>
-    <button class="subnav-tab" data-tab="memecoins">🚀 HIGH-ROI WHALE GAINERS</button>
-    <button class="subnav-tab" data-tab="movers">⚡ MOVERS RADAR</button>
-    <button class="subnav-tab" data-tab="chart">📊 LIVE CHART &amp; TERMINAL</button>
+    <button class="subnav-tab active" data-tab="terminal">🎯 TRADE SIGNALS</button>
+    <button class="subnav-tab" data-tab="memecoins">📊 VOLUME &amp; FLOW SCANNER</button>
+    <button class="subnav-tab" data-tab="movers">⚡ MARKET MOVERS</button>
+    <button class="subnav-tab" data-tab="chart">📈 LIVE CHART &amp; TERMINAL</button>
   </nav>
 
   <!-- ========================================================================
-       TAB PANE 1: CONFIDENT PRIME TRADES (STANDALONE FEED)
+       TAB PANE 1: TRADE SIGNALS (STANDALONE FEED)
        ======================================================================== -->
   <div id="tab-terminal" class="tab-pane active" style="padding:16px; flex-direction:column; overflow-y:auto;">
     <div class="panel-header-bar">
       <div class="panel-title-group">
-        <span class="panel-main-title">🎯 HIGH-CONFLUENCE PRIME TRADES</span>
-        <span class="panel-subtitle">Multi-factor confluence scanner: 1-3 setups per day with EMA, VWAP, RSI, Volume, Orderflow &amp; MTF alignment. SL, TP1-3 &amp; live price tracking. ⚠️ NOT FINANCIAL ADVICE — always use your own risk management.</span>
+        <span class="panel-main-title">🎯 ACTIVE TRADE SIGNALS</span>
+        <span class="panel-subtitle">Technical analysis scanner tracking EMA, VWAP, RSI, volume, and order flow. Displays Entry, Stop Loss, and Take Profit levels. Always apply strict risk management.</span>
       </div>
       <div class="panel-actions">
-        <span class="status-pill online">⚡ AUTOMATIC SNIPER SCANNER</span>
+        <span class="status-pill online">● SCANNER ACTIVE</span>
       </div>
     </div>
 
     <div class="scanner-cards-grid" id="memecoin-cards-container">
-      <div class="loading-state-box">Scanning for highest confluence Prime Trades &amp; Orderflow Sweeps...</div>
+      <div class="loading-state-box">Scanning markets for trade setups...</div>
     </div>
   </div>
 
@@ -144,13 +144,13 @@
         <div class="hero-status-pulse" id="hero-pulse"></div>
         <div class="hero-signal-badge" id="hero-badge">⚪ SCANNING</div>
         <div class="hero-signal-pair" id="hero-pair">BTCUSDT [1m]</div>
-        <div class="hero-signal-summary" id="hero-summary">Analyzing live orderflow &amp; institutional market structure...</div>
+        <div class="hero-signal-summary" id="hero-summary">Analyzing live order flow and market structure...</div>
         <div class="hero-reasons-container" id="hero-reasons-box">
-          <span class="reasons-pill" id="hero-reasons-pill">Scanning for 100-point confluence setups...</span>
+          <span class="reasons-pill" id="hero-reasons-pill">Scanning for technical setups...</span>
         </div>
       </div>
       <div class="hero-signal-right" id="hero-levels">
-        <div class="hero-score-100-box" title="100-Point Quantitative Confluence Score">
+        <div class="hero-score-100-box" title="Technical Setup Score (0-100)">
           <span class="score-100-num" id="hero-score100">--</span>
           <span class="score-100-denom">/100</span>
         </div>
@@ -582,36 +582,36 @@
   </div> <!-- /tab-chart -->
 
   <!-- ========================================================================
-       TAB PANE 2: INSTITUTIONAL WHALE RADAR & ORDERFLOW SCANNER
+       TAB PANE 2: VOLUME & FLOW SCANNER
        ======================================================================== -->
   <div id="tab-memecoins" class="tab-pane" style="display:none; padding:16px;">
     <div class="panel-header-bar">
       <div class="panel-title-group">
-        <span class="panel-main-title">🚀 Next Gainers of the Day (Whale Orderflow &amp; Squeeze Radar)</span>
-        <span class="panel-subtitle">High-Asymmetrical ROI setups powered by Whale Open Interest Spikes, Taker Volume Sweeps, Entry, SL &amp; Expected Move Targets</span>
+        <span class="panel-main-title">📊 Volume &amp; Order Flow Scanner</span>
+        <span class="panel-subtitle">Monitors volume surges, open interest shifts, and taker buy/sell ratios with risk-managed entry and target levels.</span>
       </div>
       <div class="panel-actions">
-        <span class="status-pill online" id="memecoin-status">WHALE RADAR ACTIVE</span>
-        <button class="ctrl-btn refresh-btn" id="memecoin-refresh-btn">🔄 Scan Gainers</button>
+        <span class="status-pill online" id="memecoin-status">● SCANNER ACTIVE</span>
+        <button class="ctrl-btn refresh-btn" id="memecoin-refresh-btn">🔄 Refresh Scanner</button>
       </div>
     </div>
     
     <div class="scanner-cards-grid" id="whale-gainers-cards-container">
-      <div class="loading-state-box">Scanning for next day gainers, whale volume surges &amp; high-ROI squeeze setups...</div>
+      <div class="loading-state-box">Scanning markets for volume shifts and order flow imbalances...</div>
     </div>
   </div>
 
   <!-- ========================================================================
-       TAB PANE 4: MOVERS RADAR (GAINER & LOSER RADAR)
+       TAB PANE 4: MOVERS RADAR (TOP GAINERS & LOSERS)
        ======================================================================== -->
   <div id="tab-movers" class="tab-pane" style="display:none; padding:16px; flex-direction:column; gap:16px; overflow-y:auto;">
     <div class="panel-header-bar">
       <div class="panel-title-group">
-        <span class="panel-main-title">⚡ MOVERS RADAR (Top Gainers &amp; Losers Pre-Breakout Detection)</span>
-        <span class="panel-subtitle">Real-time scan of all USDT perpetuals for early squeeze expansion, taker volume surges, OI changes &amp; stage classification</span>
+        <span class="panel-main-title">⚡ Market Movers (Top Gainers &amp; Losers)</span>
+        <span class="panel-subtitle">Scans USDT perpetuals for volume surges, taker flow, and directional momentum.</span>
       </div>
       <div class="panel-actions">
-        <span id="movers-status" class="status-pill online">⚡ MOVERS RADAR ACTIVE</span>
+        <span id="movers-status" class="status-pill online">● SCANNER ACTIVE</span>
         <button id="movers-refresh-btn" class="ctrl-btn refresh-btn">🔄 Refresh Movers</button>
       </div>
     </div>
@@ -642,7 +642,7 @@
       <!-- TOP 10 GAINERS TABLE -->
       <div class="movers-section-box" style="background:rgba(18,24,38,0.95); border:1px solid rgba(0,230,118,0.3); border-radius:8px; padding:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(0,230,118,0.2); padding-bottom:6px;">
-          <span style="font-size:13px; font-weight:900; color:#00e676; letter-spacing:0.5px;">🚀 TOP 10 GAINERS (BUY PRE-BREAKOUT)</span>
+          <span style="font-size:13px; font-weight:900; color:#00e676; letter-spacing:0.5px;">🟢 TOP 10 GAINERS</span>
           <span style="font-size:10.5px; color:var(--text-muted);">Ranked by Score</span>
         </div>
         <div style="overflow-x:auto;">
@@ -669,7 +669,7 @@
       <!-- TOP 10 LOSERS TABLE -->
       <div class="movers-section-box" style="background:rgba(18,24,38,0.95); border:1px solid rgba(255,59,48,0.3); border-radius:8px; padding:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,59,48,0.2); padding-bottom:6px;">
-          <span style="font-size:13px; font-weight:900; color:#ff3b30; letter-spacing:0.5px;">🩸 TOP 10 LOSERS (SHORT PRE-BREAKDOWN)</span>
+          <span style="font-size:13px; font-weight:900; color:#ff3b30; letter-spacing:0.5px;">🔴 TOP 10 LOSERS</span>
           <span style="font-size:10.5px; color:var(--text-muted);">Ranked by Score</span>
         </div>
         <div style="overflow-x:auto;">
@@ -895,8 +895,8 @@
       <span class="mobile-nav-label">Movers</span>
     </button>
     <button class="mobile-nav-btn" data-mobile-tab="memecoins">
-      <span class="mobile-nav-icon">🚀</span>
-      <span class="mobile-nav-label">Whale ROI</span>
+      <span class="mobile-nav-icon">📊</span>
+      <span class="mobile-nav-label">Scanner</span>
     </button>
     <button class="mobile-nav-btn" data-mobile-tab="chart">
       <span class="mobile-nav-icon">📊</span>

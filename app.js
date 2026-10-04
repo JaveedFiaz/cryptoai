@@ -2164,43 +2164,45 @@ class ScalperApp {
         advisory.style.background = 'rgba(255,59,48,0.25)';
         advisory.style.border = '1.5px solid #ff3b30';
         advisory.style.color = '#ff3b30';
-        advisory.innerHTML = `🔴 STOP LOSS HIT ($${fmtVal(cached.sl)}) • Trade Closed (${pnlStr})`;
+        advisory.innerHTML = `🔴 Stop Loss Hit ($${fmtVal(cached.sl)}) • ${pnlStr}`;
       } else if ((cached.status === 'TP3_HIT' || cached.status === 'TP2_HIT' || cached.status === 'TP1_HIT') && livePnl >= 0) {
         const tpLabel = cached.status === 'TP3_HIT' ? 'TP3' : (cached.status === 'TP2_HIT' ? 'TP2' : 'TP1');
         advisory.className = 'rr-box-advisory intact';
         advisory.style.background = 'rgba(0,230,118,0.2)';
         advisory.style.border = '1.5px solid #00e676';
         advisory.style.color = '#00e676';
-        advisory.innerHTML = `🚀 TARGET ${tpLabel} HIT • Profit Secured (${pnlStr})`;
+        advisory.innerHTML = `🟢 Target ${tpLabel} Reached (${pnlStr})`;
       } else if (cached.shouldExit) {
         advisory.className = 'rr-box-advisory exit-warning';
-        advisory.innerHTML = `🚨 EXIT TRADE NOW: CLOSE AT MARKET (${cached.exitReason || 'MOMENTUM REVERSAL'})`;
+        advisory.innerHTML = `⚠️ Exit Signal: Close Position (${cached.exitReason || 'Momentum Shift'})`;
       } else if (!cached.entryFilled) {
         advisory.className = 'rr-box-advisory intact';
         advisory.style.background = 'rgba(0,210,255,0.15)';
         advisory.style.border = '1px solid #00d2ff';
         advisory.style.color = '#00d2ff';
-        advisory.innerHTML = `⏳ PENDING PULLBACK ENTRY • Price ${fmtVal(price)} (Retest Target ${fmtVal(cached.entry)})`;
+        advisory.innerHTML = `⏳ Pending Limit Entry • Price $${fmtVal(price)} (Entry Level $${fmtVal(cached.entry)})`;
       } else {
-        let statusTag = '🟢 TRADE ACTIVE & INTACT';
-        if (isLong) {
+        let statusTag = '🟢 Active Position';
+        if (cached.isHostileFlow) {
+          statusTag = '⚠️ Opposing Flow Detected';
+        } else if (isLong) {
           if (price < cached.entry) {
-            statusTag = '⚡ DISCOUNT ZONE (Retest Support)';
+            statusTag = '📊 Pullback Near Support';
           } else if (price > cached.entry) {
-            statusTag = '🟢 IN PROFIT (Moving to TP1)';
+            statusTag = '🟢 In Profit';
           }
         } else { // SHORT
           if (price > cached.entry) {
-            statusTag = '⚡ DISCOUNT ZONE (Retest Resistance)';
+            statusTag = '📊 Pullback Near Resistance';
           } else if (price < cached.entry) {
-            statusTag = '🟢 IN PROFIT (Moving to TP1)';
+            statusTag = '🟢 In Profit';
           }
         }
         advisory.className = 'rr-box-advisory intact';
         advisory.style.background = '';
         advisory.style.border = '';
         advisory.style.color = '';
-        advisory.innerHTML = `${statusTag} • Live PnL: ${pnlStr}`;
+        advisory.innerHTML = `${statusTag} • PnL: ${pnlStr}`;
       }
     }
   });
@@ -5014,17 +5016,17 @@ class ScalperApp {
     }
 
     const catTitle = this.activeMemeCategory === 'bigmoves'
-      ? 'PRE-BREAKOUT BIG MOVES'
+      ? 'VOLUME & FLOW'
       : (this.activeMemeCategory === 'highcap' ? 'HIGH CAP' : 'MEME COINS');
 
     if (statusPill) {
       statusPill.className = 'status-pill online';
-      statusPill.textContent = `⚡ REAL-TIME RADAR ACTIVE (${catTitle})`;
+      statusPill.textContent = `● SCANNER ACTIVE (${catTitle})`;
     }
 
     if (refreshBtn) refreshBtn.classList.add('rotating');
     if (container && !isAutoScan && container.children.length === 0) {
-      container.innerHTML = `<div class="loading-state-box">⚡ Active Scanning ${this.activeMemeCategory === 'bigmoves' ? '44+ Coins for Volatility Squeeze & Pre-Breakout Big Moves' : (this.activeMemeCategory === 'highcap' ? '20 Top High Market Cap Coins' : '24 Top Meme Coins')}...</div>`;
+      container.innerHTML = `<div class="loading-state-box">Scanning markets for trade setups (${catTitle})...</div>`;
     }
 
     this.memeSignalsCache = this.loadMemeCache();
@@ -5227,15 +5229,15 @@ class ScalperApp {
               cached.status = 'TP3_HIT';
               cached.hitTP3 = true;
               cached.shouldExit = false;
-              cached.exitReason = '🎯 ALL TARGETS REACHED (+3R)';
+              cached.exitReason = 'Target 3 Reached (+3R)';
             } else if (isTp2Hit || cached.status === 'TP2_HIT') {
               cached.status = 'TP2_HIT';
               cached.hitTP2 = true;
-              cached.exitReason = '🟢 TP2 REACHED (+2R)';
+              cached.exitReason = 'Target 2 Reached (+2R)';
             } else if (isTp1Hit || cached.status === 'TP1_HIT') {
               cached.status = 'TP1_HIT';
               cached.hitTP1 = true;
-              cached.exitReason = '🟢 TP1 REACHED (+1R)';
+              cached.exitReason = 'Target 1 Reached (+1R)';
             }
 
             // Honest SL handling: If trade previously hit TP1/TP2 and stops out at BE, mark as BREAKEVEN profit
@@ -5244,12 +5246,12 @@ class ScalperApp {
                 cached.status = 'EXIT_BREAKEVEN';
                 if (!cached.slHitTime) cached.slHitTime = now;
                 cached.shouldExit = true;
-                cached.exitReason = '🛡️ PROFIT SECURED (Breakeven Exit)';
+                cached.exitReason = 'Exited at Breakeven';
               } else {
                 cached.status = 'SL_HIT';
                 if (!cached.slHitTime) cached.slHitTime = now;
                 cached.shouldExit = true;
-                cached.exitReason = 'STOP LOSS HIT';
+                cached.exitReason = 'Stop Loss Hit';
               }
             } else if (cached.status === 'TP1_HIT' || cached.status === 'TP2_HIT') {
               if ((isLong && curClose < cached.entry) || (!isLong && curClose > cached.entry)) {
@@ -5370,20 +5372,20 @@ class ScalperApp {
 
           // 6. Quantitative Strategy Engine Classification & Dynamic Strategy Entry Level
           let strategyType = 'MULTI_TIMEFRAME_MOMENTUM';
-          let strategyLabel = '🌊 MTF TREND CONTINUATION';
+          let strategyLabel = 'Trend Continuation';
 
           if (engineAnalysis && engineAnalysis.latest && engineAnalysis.latest.liquiditySweep && engineAnalysis.latest.liquiditySweep.isSweep) {
             strategyType = 'LIQUIDITY_SWEEP';
-            strategyLabel = '🚀 INST. LIQUIDITY SWEEP & REVERSAL';
+            strategyLabel = 'Liquidity Sweep & Retest';
           } else if (distToHigh20 < 0.3 || distToLow20 < 0.3) {
             strategyType = 'STRUCTURE_BREAKOUT';
-            strategyLabel = '⚡ MARKET STRUCTURE BREAKOUT (CHoCH)';
+            strategyLabel = 'Structure Breakout';
           } else if (isBigMoveBrewing) {
             strategyType = 'SQUEEZE_EXPANSION';
-            strategyLabel = '🔥 PRE-BREAKOUT VOLATILITY SQUEEZE';
+            strategyLabel = 'Range Compression Breakout';
           } else if (orderFlowBuyPct >= 66 || orderFlowBuyPct <= 34) {
             strategyType = 'ORDERFLOW_SWEEP';
-            strategyLabel = '🐋 INSTITUTIONAL TAKER SWEEP';
+            strategyLabel = 'Taker Volume Imbalance';
           }
 
           const candleRange = confirmedBar.high - confirmedBar.low;
@@ -5462,9 +5464,9 @@ class ScalperApp {
             return null; // In Big Moves tab, filter strictly for coiled setups before breakout
           }
 
-          const projectedMoveMin = Math.max(3.5, Math.min(12.0, (atr / confirmedBar.close * 100 * 3.0))).toFixed(1);
-          const projectedMoveMax = Math.max(8.0, Math.min(25.0, (atr / confirmedBar.close * 100 * 6.5))).toFixed(1);
-          const projectedMove = `Target +${projectedMoveMin}% to +${projectedMoveMax}%`;
+          const pMove1 = Math.abs(((tp1 - entry) / entry) * 100).toFixed(1);
+          const pMove2 = Math.abs(((tp2 - entry) / entry) * 100).toFixed(1);
+          const projectedMove = `TP1: ${pMove1}% | TP2: ${pMove2}%`;
 
           const samplePrice = entry || confirmedBar.close;
           const decimals = samplePrice < 0.0001 ? 8 : (samplePrice < 0.001 ? 7 : (samplePrice < 0.01 ? 6 : (samplePrice < 1 ? 4 : (samplePrice < 10 ? 3 : 2))));
@@ -5577,8 +5579,8 @@ class ScalperApp {
       }
 
       if (topSetups.length === 0) {
-        const catName = this.activeMemeCategory === 'bigmoves' ? 'Pre-Breakout Big Moves & Day Top Gainers' : (this.activeMemeCategory === 'highcap' ? 'High Market Cap Coins' : 'Meme Coins');
-        container.innerHTML = `<div class="loading-state-box">⚡ Real-time Orderflow Radar Active — Monitoring ${catName}. No new pre-breakout squeeze setups meeting strict criteria at this bar. Scanning automatically...</div>`;
+        const catName = this.activeMemeCategory === 'bigmoves' ? 'Volume & Flow' : (this.activeMemeCategory === 'highcap' ? 'High Market Cap' : 'Meme Coins');
+        container.innerHTML = `<div class="loading-state-box">Monitoring ${catName}. No new setups meeting technical criteria at this candle. Scanning automatically...</div>`;
         this._memeScanInFlight = false;
         return;
       }
@@ -5653,19 +5655,19 @@ class ScalperApp {
         if (isTopPick) {
           topPickBannerHtml = `
             <div style="background:linear-gradient(90deg, #ffd700, #ffaa00); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(255,215,0,0.4);">
-              🥇 TOP #1 PRIME TRADE • HIGHEST CONFLUENCE (${cardScore}/99)
+              ⭐ HIGHEST RANKED SETUP (${cardScore}/100)
             </div>
           `;
         } else if (item.change24h >= 10.0) {
           topPickBannerHtml = `
             <div style="background:linear-gradient(90deg, #ff0055, #ff5e00); color:#fff; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
-              ⚡ DAY TOP GAINER (${item.change24h >= 0 ? '+' : ''}${(item.change24h || 0).toFixed(1)}% 24h)
+              📈 24H GAINER (${item.change24h >= 0 ? '+' : ''}${(item.change24h || 0).toFixed(1)}%)
             </div>
           `;
         } else if (item.isPreBreakoutBigMove) {
           topPickBannerHtml = `
             <div style="background:linear-gradient(90deg, #00f2fe, #4facfe); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
-              🚀 PRE-BREAKOUT VOLATILITY SQUEEZE (${item.projectedMove || 'Target +3.5% - +8.0%'})
+              📊 RANGE COMPRESSION SETUP (${item.projectedMove || 'TP1 / TP2'})
             </div>
           `;
         }
@@ -5673,17 +5675,17 @@ class ScalperApp {
         let whaleBadge = '';
         if (item.isHostileFlow) {
           const opposedPct = item.dir === 'LONG' ? (100 - (item.orderFlowBuyPct || 50)) : (item.orderFlowBuyPct || 50);
-          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.25); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">⚠️ HOSTILE FLOW (${opposedPct.toFixed(0)}% Dump Pressure)</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.25); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">⚠️ OPPOSING FLOW (${opposedPct.toFixed(0)}% Selling)</span>`;
         } else if (item.isWhaleAccumulating && (item.orderFlowBuyPct || 50) >= 58.0) {
-          whaleBadge = `<span class="setup-badge" style="background:rgba(0,230,118,0.2); color:#00e676; font-weight:800; border:1px solid #00e676;">🚀 WHALE ACCUMULATION BREWING (${(item.orderFlowBuyPct || 50).toFixed(0)}% Buy)</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(0,230,118,0.2); color:#00e676; font-weight:800; border:1px solid #00e676;">🟢 BUYER FLOW (${(item.orderFlowBuyPct || 50).toFixed(0)}% Buy)</span>`;
         } else if (item.isWhaleDistributing && (item.orderFlowBuyPct || 50) <= 42.0) {
-          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">🩸 WHALE DISTRIBUTION BREWING (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Sell)</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">🔴 SELLER FLOW (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Sell)</span>`;
         } else if ((item.orderFlowRatio || 1) >= 1.5 && (item.orderFlowBuyPct || 50) >= 55.0) {
-          whaleBadge = `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🐋 INST. BUY SWEEP (${(item.orderFlowBuyPct || 50).toFixed(0)}% Taker)</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(0,210,255,0.2); color:var(--color-cyan); font-weight:800;">🟢 TAKER BUYING (${(item.orderFlowBuyPct || 50).toFixed(0)}%)</span>`;
         } else if ((item.orderFlowRatio || 1) <= 0.65 && (item.orderFlowBuyPct || 50) <= 45.0) {
-          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800;">🩸 INST. SELL DUMP (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}% Taker)</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.2); color:#ff3b30; font-weight:800;">🔴 TAKER SELLING (${(100 - (item.orderFlowBuyPct || 50)).toFixed(0)}%)</span>`;
         } else if (item.isBigMoveBrewing) {
-          whaleBadge = `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">🚀 BIG MOVE BREWING ${(item.volRatio || 1).toFixed(1)}x</span>`;
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,215,0,0.2); color:var(--color-gold); font-weight:800; border:1px solid var(--color-gold);">📈 VOLUME SURGE ${(item.volRatio || 1).toFixed(1)}x</span>`;
         } else {
           whaleBadge = `<span class="setup-badge" style="background:rgba(255,255,255,0.06); color:var(--text-muted);">VOL ${(item.volRatio || 1).toFixed(1)}x</span>`;
         }
@@ -5697,7 +5699,7 @@ class ScalperApp {
           cardStyle = `border:2px solid #ff3b30; opacity:0.9;`;
           exitAdvisoryHtml = `
             <div class="rr-box-advisory exit-warning" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(255,59,48,0.25); border:1.5px solid #ff3b30; color:#ff3b30; font-weight:800;">
-              🔴 STOP LOSS HIT ($${fmtVal(item.sl)}) • Trade Closed (${pnlStr})
+              🔴 Stop Loss Hit ($${fmtVal(item.sl)}) • ${pnlStr}
             </div>
           `;
         } else if ((item.status === 'TP3_HIT' || item.status === 'TP2_HIT' || item.status === 'TP1_HIT') && livePnl >= 0) {
@@ -5705,14 +5707,14 @@ class ScalperApp {
           const tpLabel = item.status === 'TP3_HIT' ? 'TP3' : (item.status === 'TP2_HIT' ? 'TP2' : 'TP1');
           exitAdvisoryHtml = `
             <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(0,230,118,0.2); border:1.5px solid #00e676; color:#00e676; font-weight:800;">
-              🚀 TARGET ${tpLabel} HIT • Profit Secured (${pnlStr})
+              🟢 Target ${tpLabel} Reached (${pnlStr})
             </div>
           `;
         } else if (item.shouldExit) {
           cardStyle = `border:2px solid #ff9500;`;
           exitAdvisoryHtml = `
             <div class="rr-box-advisory exit-warning" style="margin:8px 0; font-size:11px; text-align:center;">
-              🚨 EXIT TRADE NOW: CLOSE AT MARKET (${item.exitReason || 'MOMENTUM REVERSAL'})
+              ⚠️ Exit Signal: Close Position (${item.exitReason || 'Momentum Shift'})
             </div>
           `;
         } else if (item.entry) {
@@ -5726,30 +5728,30 @@ class ScalperApp {
 
             exitAdvisoryHtml = `
               <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center; background:rgba(0,210,255,0.15); border:1px solid #00d2ff; color:#00d2ff; font-weight:800;">
-                ⏳ PENDING PULLBACK ENTRY • Price ${fmtVal(curPrice)} (Retest Target ${fmtVal(item.entry)})
+                ⏳ Pending Limit Entry • Price $${fmtVal(curPrice)} (Entry Level $${fmtVal(item.entry)})
               </div>
             `;
           } else {
-            let statusTag = '🟢 TRADE ACTIVE & INTACT';
+            let statusTag = '🟢 Active Position';
             if (item.isHostileFlow) {
-              statusTag = '⚠️ HOSTILE FLOW (Aggressive Dumping • Protect Profit / Tighten Stop)';
+              statusTag = '⚠️ Opposing Flow Detected (Protect Profit / Tighten Stop)';
             } else if (isLong) {
               if (curPrice < item.entry) {
-                statusTag = '⚡ DISCOUNT ZONE (Retest Support)';
+                statusTag = '📊 Pullback Near Support';
               } else if (curPrice > item.entry) {
-                statusTag = '🟢 IN PROFIT (Moving to TP1)';
+                statusTag = '🟢 In Profit';
               }
             } else { // SHORT
               if (curPrice > item.entry) {
-                statusTag = '⚡ DISCOUNT ZONE (Retest Resistance)';
+                statusTag = '📊 Pullback Near Resistance';
               } else if (curPrice < item.entry) {
-                statusTag = '🟢 IN PROFIT (Moving to TP1)';
+                statusTag = '🟢 In Profit';
               }
             }
 
             exitAdvisoryHtml = `
               <div class="rr-box-advisory intact" style="margin:8px 0; font-size:11px; text-align:center;">
-                ${statusTag} • Live PnL: ${pnlStr}
+                ${statusTag} • PnL: ${pnlStr}
               </div>
             `;
           }
@@ -5760,16 +5762,16 @@ class ScalperApp {
 
         let cardContentHtml = '';
 
-        // If in Pre-Breakout Big Moves category, output Honest Pre-Breakout Headings + Whale Metrics + FULL LIMIT ENTRY / SL / TP GRID!
+        // If in Pre-Breakout / Volume & Flow category, output honest labels + limit entry / SL / TP grid
         if (this.activeMemeCategory === 'bigmoves' || item.category === 'bigmoves') {
           const oiPct = item.oiChangePct || 0;
-          const oiStatus = oiPct >= 0 ? `🟢 ACCUMULATION (+${oiPct.toFixed(1)}% OI Spiked)` : `🔴 DISTRIBUTION (${oiPct.toFixed(1)}% OI Drop)`;
+          const oiStatus = oiPct >= 0 ? `🟢 Rising (+${oiPct.toFixed(1)}%)` : `🔴 Falling (${oiPct.toFixed(1)}%)`;
           const roiHeading = item.dir === 'LONG'
-            ? `🚀 PRE-BREAKOUT ACCUMULATION • Target +5.0% to +15.0% Move`
-            : `🩸 PRE-BREAKOUT DISTRIBUTION • Target -5.0% to -15.0% Move`;
+            ? `📈 LONG SETUP (Range Compression)`
+            : `📉 SHORT SETUP (Range Compression)`;
           
           cardContentHtml = `
-            <div style="background:linear-gradient(90deg, ${item.dir === 'LONG' ? '#00e676, #00b0ff' : '#ff3b30, #ff9100'}); color:#000; font-weight:900; font-size:11px; padding:5px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px; box-shadow:0 2px 8px rgba(0,242,254,0.3);">
+            <div style="background:linear-gradient(90deg, ${item.dir === 'LONG' ? '#00e676, #00b0ff' : '#ff3b30, #ff9100'}); color:#000; font-weight:900; font-size:11px; padding:5px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
               ${roiHeading}
             </div>
 
@@ -5777,39 +5779,39 @@ class ScalperApp {
               <div style="display:flex; align-items:center; gap:8px;">
                 <strong style="font-size:16px; color:#fff;">${item.symbol}</strong>
                 <span style="font-size:12px; font-weight:700; color:${item.changePct >= 0 ? '#00e676' : '#ff3b30'};">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</span>
-                <span style="font-size:12px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:2px 7px; border-radius:4px; border:1px solid rgba(0,242,254,0.3);">🟢 LIVE $${fmtVal(curPrice)}</span>
+                <span style="font-size:12px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:2px 7px; border-radius:4px; border:1px solid rgba(0,242,254,0.3);">🟢 $${fmtVal(curPrice)}</span>
               </div>
               ${whaleBadge}
             </div>
             
             <div class="bigmoves-radar-box" style="background:rgba(0, 242, 254, 0.05); border:1.5px solid rgba(0, 242, 254, 0.35); border-radius:8px; padding:10px; margin:8px 0; font-size:11px; backdrop-filter:blur(8px);">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px;">
-                <span style="color:#00f2fe; font-weight:800; letter-spacing:0.5px;">⚡ BREAKOUT CONFLUENCE SCORE:</span>
-                <strong style="color:#ffd700; font-size:12px; font-weight:900; background:rgba(255,215,0,0.15); padding:2px 6px; border-radius:4px; border:1px solid #ffd700;">${cardScore}/99 CONFLUENCE</strong>
+                <span style="color:#00f2fe; font-weight:800; letter-spacing:0.5px;">SETUP SCORE:</span>
+                <strong style="color:#ffd700; font-size:12px; font-weight:900; background:rgba(255,215,0,0.15); padding:2px 6px; border-radius:4px; border:1px solid #ffd700;">${cardScore}/100</strong>
               </div>
               <div style="display:flex; justify-content:space-between; margin:4px 0;">
-                <span style="color:var(--text-muted);">🐋 Open Interest (OI):</span>
+                <span style="color:var(--text-muted);">Open Interest (OI):</span>
                 <b style="color:${oiPct >= 0 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${oiStatus}</b>
               </div>
               <div style="display:flex; justify-content:space-between; margin:4px 0;">
-                <span style="color:var(--text-muted);">🌊 Taker Sweeps:</span>
-                <b style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${buyPctVal.toFixed(0)}% Buy Sweeps (${ratioVal.toFixed(1)}x)</b>
+                <span style="color:var(--text-muted);">Taker Order Flow:</span>
+                <b style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${buyPctVal.toFixed(0)}% Buy / ${(100 - buyPctVal).toFixed(0)}% Sell (${ratioVal.toFixed(1)}x)</b>
               </div>
             </div>
 
             ${exitAdvisoryHtml}
 
-            <!-- PRE-PUMP / PRE-DUMP LIMIT ENTRY, SL, AND TP1-3 TARGETS -->
+            <!-- LIMIT ENTRY, SL, AND TP1-3 TARGETS -->
             <div class="setup-targets-grid" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:4px; background:var(--bg-main); padding:8px; border-radius:6px; font-size:10.5px; margin-bottom:10px; text-align:center;">
-              <div><span style="color:var(--color-gold); font-weight:700;">PRE-ENTRY:</span> <b style="color:#fff;">${fmtVal(item.entry)}</b></div>
+              <div><span style="color:var(--color-gold); font-weight:700;">ENTRY:</span> <b style="color:#fff;">${fmtVal(item.entry)}</b></div>
               <div><span style="color:var(--text-muted);">SL:</span> <b style="color:#ff3b30;">${fmtVal(item.sl)}</b></div>
-              <div><span style="color:var(--text-muted);">TP1 (1:1):</span> <b style="color:#00e676;">${fmtVal(item.tp1)}</b></div>
-              <div><span style="color:var(--text-muted);">TP2 (1:2):</span> <b style="color:#00e676;">${fmtVal(item.tp2)}</b></div>
-              <div><span style="color:var(--text-muted);">TP3 (1:3):</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
+              <div><span style="color:var(--text-muted);">TP1:</span> <b style="color:#00e676;">${fmtVal(item.tp1)}</b></div>
+              <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">${fmtVal(item.tp2)}</b></div>
+              <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
             </div>
 
             <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:linear-gradient(135deg, ${dirColor}, #10141f); border:1px solid ${dirColor}; color:#fff; cursor:pointer; border-radius:6px; font-size:12px;">
-              ⚡ Set Pre-Breakout Limit Order & Chart
+              📊 View Chart &amp; Plan Order
             </button>
           `;
         } else {
@@ -5824,13 +5826,13 @@ class ScalperApp {
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; background:rgba(255,255,255,0.02); padding:5px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
               <div style="display:flex; flex-direction:column; gap:2px;">
-                <span style="font-size:12px; font-weight:800; color:${dirColor};">${item.dir} SIGNAL (${cardScore}/100) • <span style="color:var(--color-gold);">⚡ Confluence: ${cardScore}/99</span></span>
-                <span style="font-size:10.5px; font-weight:700; color:#00f2fe;">${item.strategyLabel || '🌊 MTF TREND CONTINUATION'}</span>
+                <span style="font-size:12px; font-weight:800; color:${dirColor};">${item.dir} SETUP • Score: ${cardScore}/100</span>
+                <span style="font-size:10.5px; font-weight:700; color:#00f2fe;">${item.strategyLabel || 'Trend Continuation'}</span>
               </div>
-              <span class="live-price-badge" style="font-size:13px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:3px 8px; border-radius:4px; border:1px solid rgba(0,242,254,0.35); box-shadow:0 0 8px rgba(0,242,254,0.2);">🟢 LIVE $${fmtVal(curPrice)}</span>
+              <span class="live-price-badge" style="font-size:13px; font-weight:800; font-family:var(--font-mono); color:#00f2fe; background:rgba(0,242,254,0.12); padding:3px 8px; border-radius:4px; border:1px solid rgba(0,242,254,0.35); box-shadow:0 0 8px rgba(0,242,254,0.2);">🟢 $${fmtVal(curPrice)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:5px 8px; border-radius:6px; margin:6px 0; font-size:11px;">
-              <span style="color:var(--text-muted);">🐋 Taker Orderflow:</span>
+              <span style="color:var(--text-muted);">Taker Order Flow:</span>
               <strong style="color:${buyPctVal >= 50 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">
                 ${buyPctVal >= 50 ? '🟢' : '🔴'} ${buyPctVal.toFixed(0)}% Buy / ${(100 - buyPctVal).toFixed(0)}% Sell (${ratioVal.toFixed(1)}x)
               </strong>
@@ -5844,7 +5846,7 @@ class ScalperApp {
               <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
             </div>
             <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
-              ${isTopPick ? '🚀 EXECUTE #1 PRIME TRADE' : '⚡ View Chart & Signal'}
+              ${isTopPick ? '📊 View Highest Ranked Setup' : '📊 View Chart & Setup'}
             </button>
           `;
         }
@@ -5979,7 +5981,7 @@ class ScalperApp {
             <td style="padding:6px; color:${coin.oiChangePct >= 0 ? '#00e676' : '#ff3b30'}; font-weight:700;">${coin.oiChangePct >= 0 ? '+' : ''}${coin.oiChangePct}%</td>
             <td style="padding:6px;">
               <button class="movers-trade-btn" data-symbol="${coin.symbol}" data-side="${isGainer ? 'LONG' : 'SHORT'}" style="background:${isGainer ? 'rgba(0,230,118,0.15)' : 'rgba(255,59,48,0.15)'}; color:${isGainer ? '#00e676' : '#ff3b30'}; border:1px solid ${isGainer ? 'rgba(0,230,118,0.4)' : 'rgba(255,59,48,0.4)'}; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:800; cursor:pointer;">
-                ⚡ TRADE
+                CHART
               </button>
             </td>
           </tr>
@@ -5988,13 +5990,13 @@ class ScalperApp {
 
       if (gainersTbody) {
         gainersTbody.innerHTML = topGainers.length === 0 
-          ? `<tr><td colspan="8" class="empty-cell" style="padding:12px; text-align:center; color:var(--text-muted);">No qualified pre-breakout gainers at this candle.</td></tr>`
+          ? `<tr><td colspan="8" class="empty-cell" style="padding:12px; text-align:center; color:var(--text-muted);">No qualified gainers at this candle.</td></tr>`
           : topGainers.map(c => renderRowHtml(c, true)).join('');
       }
 
       if (losersTbody) {
         losersTbody.innerHTML = topLosers.length === 0
-          ? `<tr><td colspan="8" class="empty-cell" style="padding:12px; text-align:center; color:var(--text-muted);">No qualified pre-breakout losers at this candle.</td></tr>`
+          ? `<tr><td colspan="8" class="empty-cell" style="padding:12px; text-align:center; color:var(--text-muted);">No qualified losers at this candle.</td></tr>`
           : topLosers.map(c => renderRowHtml(c, false)).join('');
       }
 
@@ -6014,7 +6016,7 @@ class ScalperApp {
     } finally {
       this._moversScanInFlight = false;
       if (refreshBtn) refreshBtn.classList.remove('loading');
-      if (statusPill) statusPill.textContent = '⚡ MOVERS RADAR ACTIVE';
+      if (statusPill) statusPill.textContent = '● MOVERS ACTIVE';
     }
   }
 
