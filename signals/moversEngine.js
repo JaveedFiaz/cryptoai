@@ -40,7 +40,7 @@
 
       const symbol = data.symbol;
       const price = parseFloat(data.price || data.close || 0);
-      const volume24h = parseFloat(data.volume24hUsdt || data.quoteVolume || 0);
+      const volume24h = parseFloat(data.volume24hUsdt || data.quoteVolume || data.volume24h || 0);
       const spreadPct = parseFloat(data.spreadPct || 0.0005);
       const depthUsdt = parseFloat(data.orderBookDepthUsdt || 75000);
       const listingAgeHours = parseFloat(data.listingAgeHours || 120);
@@ -56,76 +56,115 @@
       const change1h = parseFloat(data.change1h || 0);
       const change24h = parseFloat(data.change24h || 0);
 
-      const rvol = parseFloat(data.rvol || 1.0);
-      const takerBuyPct = parseFloat(data.takerBuyPct || 50.0);
-      const takerSellPct = 100.0 - takerBuyPct;
-      const cvdTrend = data.cvdTrend || 'NEUTRAL'; // 'BUY_DOMINANT', 'SELL_DOMINANT', 'NEUTRAL'
+      // Volatility compression and range position from 24h high/low
+      const high24h = parseFloat(data.high24h || price);
+      const low24h = parseFloat(data.low24h || price);
+      const range24hPct = (price > 0 && high24h > low24h) ? ((high24h - low24h) / price) * 100 : 5.0;
+      const posInRange = (high24h > low24h) ? ((price - low24h) / (high24h - low24h)) : 0.5;
+
+      // Volatility squeeze ratio (tight range = high compression / coiled spring)
+      const squeezeRatioPct = parseFloat(data.squeezeRatioPct || (range24hPct < 3.5 ? 0.55 : (range24hPct < 6.0 ? 0.78 : 1.25)));
+
+      // Estimate or use provided RVOL
+      let rvol = parseFloat(data.rvol || 0);
+      if (!rvol || rvol === 1.0) {
+        rvol = volume24h > 150000000 ? 2.5 : (volume24h > 40000000 ? 1.8 : (volume24h > 15000000 ? 1.4 : 1.1));
+      }
+
+      // Estimate or use provided Taker Flow
+      let takerBuyPct = parseFloat(data.takerBuyPct || 0);
+      if (!takerBuyPct || takerBuyPct === 50) {
+        takerBuyPct = posInRange >= 0.60 
+          ? (50 + (posInRange - 0.5) * 38) 
+          : (posInRange <= 0.40 ? (50 - (0.5 - posInRange) * 38) : 50);
+      }
+      takerBuyPct = Math.min(95, Math.max(5, Math.round(takerBuyPct)));
+      const takerSellPct = 100 - takerBuyPct;
+
+      const cvdTrend = data.cvdTrend || 'NEUTRAL';
       const oiChangePct = parseFloat(data.oiChangePct || 0);
       const fundingRatePct = parseFloat(data.fundingRatePct || 0.0001);
-      const squeezeRatioPct = parseFloat(data.squeezeRatioPct || 0.85);
       const btcTrend = data.btcTrend || 'NEUTRAL';
 
-      // --- Gainer Score Calculation (0 - 100) ---
-      let gainerScore = 0;
-      if (takerBuyPct >= 68.0) gainerScore += 25;
-      else if (takerBuyPct >= 58.0) gainerScore += 15;
-      else if (takerBuyPct >= 52.0) gainerScore += 8;
-
-      if (rvol >= 3.0) gainerScore += 25;
-      else if (rvol >= 2.0) gainerScore += 18;
-      else if (rvol >= 1.4) gainerScore += 10;
-
-      if (oiChangePct >= 1.0) gainerScore += 20;
-      else if (oiChangePct >= 0.3) gainerScore += 12;
-
-      if (squeezeRatioPct < 0.75) gainerScore += 15;
-      else if (squeezeRatioPct < 1.0) gainerScore += 8;
-
-      if (change15m > 0.3 && change5m > 0.1) gainerScore += 15;
-      else if (change15m > 0) gainerScore += 7;
-
-      if (btcTrend === 'BEARISH' && takerBuyPct < 70.0) gainerScore -= 10; // BTC dump penalty
-      gainerScore = Math.min(99, Math.max(0, Math.round(gainerScore)));
-
-      // --- Loser Score Calculation (0 - 100) ---
-      let loserScore = 0;
-      if (takerSellPct >= 68.0) loserScore += 25;
-      else if (takerSellPct >= 58.0) loserScore += 15;
-      else if (takerSellPct >= 52.0) loserScore += 8;
-
-      if (rvol >= 3.0) loserScore += 25;
-      else if (rvol >= 2.0) loserScore += 18;
-      else if (rvol >= 1.4) loserScore += 10;
-
-      if (oiChangePct >= 1.0 || (change15m < -1.0 && oiChangePct < -0.5)) loserScore += 20;
-      else if (oiChangePct >= 0.3) loserScore += 12;
-
-      if (squeezeRatioPct < 0.75) loserScore += 15;
-      else if (squeezeRatioPct < 1.0) loserScore += 8;
-
-      if (change15m < -0.3 && change5m < -0.1) loserScore += 15;
-      else if (change15m < 0) loserScore += 7;
-
-      if (btcTrend === 'BULLISH' && takerSellPct < 70.0) loserScore -= 10; // BTC pump penalty
-      loserScore = Math.min(99, Math.max(0, Math.round(loserScore)));
-
       // --- Stage Classification (EARLY, MID, LATE, TRAP) ---
+      // EARLY: Coiled compression setup BEFORE big move starts!
       const absMove24h = Math.abs(change24h);
-      const absMove15m = Math.abs(change15m);
       let stage = 'MID';
 
-      // TRAP Check: Price pumping but taker selling heavily or OI collapsing
-      if ((change15m > 1.0 && takerSellPct >= 65.0) || (change15m < -1.0 && takerBuyPct >= 65.0)) {
-        stage = 'TRAP';
-      } else if (absMove24h >= 10.0 || absMove15m >= 4.0) {
-        stage = 'LATE'; // Over-extended
-      } else if (squeezeRatioPct < 1.0 && rvol >= 1.6 && absMove24h < 4.0) {
+      if (absMove24h >= 12.0) {
+        stage = 'LATE'; // Over-extended move, late to enter
+      } else if (range24hPct < 5.0 && absMove24h < 4.0 && volume24h >= 10000000) {
         stage = 'EARLY'; // Coiled squeeze pre-breakout!
-      } else if (absMove24h >= 3.5 || absMove15m >= 1.2) {
+      } else if (absMove24h >= 4.0) {
         stage = 'MID';
       } else {
         stage = 'EARLY';
       }
+
+      // TRAP Check: Price pumping but taker selling heavily or OI collapsing
+      if ((change15m > 1.0 && takerSellPct >= 65.0) || (change15m < -1.0 && takerBuyPct >= 65.0)) {
+        stage = 'TRAP';
+      }
+
+      // --- Gainer Score Calculation (0 - 100) ---
+      let gainerScore = 0;
+      if (takerBuyPct >= 65.0) gainerScore += 25;
+      else if (takerBuyPct >= 55.0) gainerScore += 16;
+      else if (takerBuyPct >= 50.0) gainerScore += 8;
+
+      if (rvol >= 2.2) gainerScore += 25;
+      else if (rvol >= 1.6) gainerScore += 18;
+      else if (rvol >= 1.2) gainerScore += 10;
+
+      if (squeezeRatioPct < 0.70) gainerScore += 20;
+      else if (squeezeRatioPct < 0.95) gainerScore += 12;
+
+      // PRE-BREAKOUT COILED BONUS: Prioritize pairs BEFORE the move starts!
+      if (stage === 'EARLY') {
+        gainerScore += 20;
+        if (posInRange >= 0.55 && change24h >= 0) gainerScore += 10;
+      } else if (stage === 'LATE') {
+        gainerScore -= 15; // Penalty for overextended pump
+      }
+
+      if (oiChangePct >= 1.0) gainerScore += 10;
+      else if (oiChangePct >= 0.3) gainerScore += 5;
+
+      if (change15m > 0.3 && change5m > 0.1) gainerScore += 10;
+      else if (change24h > 0.5) gainerScore += 5;
+
+      if (btcTrend === 'BEARISH' && takerBuyPct < 70.0) gainerScore -= 10;
+      gainerScore = Math.min(99, Math.max(0, Math.round(gainerScore)));
+
+      // --- Loser Score Calculation (0 - 100) ---
+      let loserScore = 0;
+      if (takerSellPct >= 65.0) loserScore += 25;
+      else if (takerSellPct >= 55.0) loserScore += 16;
+      else if (takerSellPct >= 50.0) loserScore += 8;
+
+      if (rvol >= 2.2) loserScore += 25;
+      else if (rvol >= 1.6) loserScore += 18;
+      else if (rvol >= 1.2) loserScore += 10;
+
+      if (squeezeRatioPct < 0.70) loserScore += 20;
+      else if (squeezeRatioPct < 0.95) loserScore += 12;
+
+      // PRE-BREAKDOWN COILED BONUS: Prioritize pairs BEFORE the breakdown starts!
+      if (stage === 'EARLY') {
+        loserScore += 20;
+        if (posInRange <= 0.45 && change24h <= 0) loserScore += 10;
+      } else if (stage === 'LATE') {
+        loserScore -= 15; // Penalty for overextended dump
+      }
+
+      if (oiChangePct >= 1.0 || (change15m < -1.0 && oiChangePct < -0.5)) loserScore += 10;
+      else if (oiChangePct >= 0.3) loserScore += 5;
+
+      if (change15m < -0.3 && change5m < -0.1) loserScore += 10;
+      else if (change24h < -0.5) loserScore += 5;
+
+      if (btcTrend === 'BULLISH' && takerSellPct < 70.0) loserScore -= 10;
+      loserScore = Math.min(99, Math.max(0, Math.round(loserScore)));
 
       // --- Risk Grade Assignment (Grade A, Grade B, Grade C) ---
       let riskGrade = 'B';
@@ -158,6 +197,8 @@
         oiChangePct,
         fundingRatePct,
         squeezeRatioPct,
+        range24hPct,
+        volume24hUsdt: volume24h,
         gainerScore,
         loserScore,
         stage,

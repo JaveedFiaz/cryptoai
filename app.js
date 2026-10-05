@@ -248,8 +248,6 @@ class ScalperApp {
     this.initGlobalTickerWs();
 
     this.switchSubnavTab(initialTab);
-    const initialMobileTab = (initialTab === 'memecoins') ? 'memecoins' : ((initialTab === 'scanner') ? 'scanner' : (initialTab === 'analytics' ? 'analytics' : 'chart'));
-    this.switchMobileTab(initialMobileTab);
 
     const serverAvailable = await this.checkServerAvailability();
     if (serverAvailable) {
@@ -781,27 +779,12 @@ class ScalperApp {
 
   switchMobileTab(tab) {
     this.activeMobileTab = tab;
-    document.querySelectorAll('.mobile-nav-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-mobile-tab') === tab);
-    });
-
-    document.body.classList.remove('mobile-tab-terminal', 'mobile-tab-movers', 'mobile-tab-chart', 'mobile-tab-memecoins', 'mobile-tab-signals', 'mobile-tab-scanner');
-    document.body.classList.add(`mobile-tab-${tab}`);
-
-    if (tab === 'terminal') {
-      this.switchSubnavTab('terminal');
-    } else if (tab === 'movers') {
-      this.switchSubnavTab('movers');
-    } else if (tab === 'memecoins') {
-      this.switchSubnavTab('memecoins');
-    } else if (tab === 'chart') {
-      this.switchSubnavTab('chart');
-    } else if (tab === 'signals') {
+    if (tab === 'signals') {
       this.switchSubnavTab('chart');
       const sigTabBtn = document.querySelector('.tab-btn[data-tab="tab-signals"]');
       if (sigTabBtn) sigTabBtn.click();
-    } else if (tab === 'scanner') {
-      this.switchSubnavTab('scanner');
+    } else {
+      this.switchSubnavTab(tab);
     }
 
     if (this.chart) {
@@ -4724,6 +4707,13 @@ class ScalperApp {
       btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
     });
 
+    // Sync mobile dock buttons and body class
+    document.querySelectorAll('.mobile-nav-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-mobile-tab') === tabId);
+    });
+    document.body.classList.remove('mobile-tab-terminal', 'mobile-tab-movers', 'mobile-tab-chart', 'mobile-tab-memecoins', 'mobile-tab-signals', 'mobile-tab-scanner');
+    document.body.classList.add(`mobile-tab-${tabId}`);
+
     const tabTerminal = document.getElementById('tab-terminal');
     const tabMeme = document.getElementById('tab-memecoins');
     const tabMovers = document.getElementById('tab-movers');
@@ -5923,28 +5913,55 @@ class ScalperApp {
         this.moversEngine = (typeof MoversEngine !== 'undefined') ? new MoversEngine() : null;
       }
 
-      let tickerMap = this.livePrices || {};
-      if (Object.keys(tickerMap).length < 5) {
-        try {
-          const resp = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+      // Fetch all live Binance USDT Perpetual Futures 24hr tickers
+      let coinList = [];
+      try {
+        const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+        if (resp.ok) {
           const data = await resp.json();
           if (Array.isArray(data)) {
-            data.forEach(t => {
-              if (t.symbol && t.symbol.endsWith('USDT')) {
-                tickerMap[t.symbol] = {
+            coinList = data
+              .filter(t => t.symbol && t.symbol.endsWith('USDT'))
+              .map(t => ({
+                symbol: t.symbol,
+                price: parseFloat(t.lastPrice || 0),
+                change24h: parseFloat(t.priceChangePercent || 0),
+                volume24hUsdt: parseFloat(t.quoteVolume || 0),
+                high24h: parseFloat(t.highPrice || 0),
+                low24h: parseFloat(t.lowPrice || 0)
+              }));
+          }
+        }
+      } catch (e) {
+        console.warn('Binance Futures ticker fetch error:', e.message);
+      }
+
+      // Fallback to Spot 24hr tickers if futures API is blocked
+      if (coinList.length === 0) {
+        try {
+          const resp = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+          if (resp.ok) {
+            const data = await resp.json();
+            if (Array.isArray(data)) {
+              coinList = data
+                .filter(t => t.symbol && t.symbol.endsWith('USDT'))
+                .map(t => ({
                   symbol: t.symbol,
-                  price: parseFloat(t.lastPrice),
-                  change24h: parseFloat(t.priceChangePercent),
-                  volume24h: parseFloat(t.quoteVolume),
-                  high24h: parseFloat(t.highPrice),
-                  low24h: parseFloat(t.lowPrice)
-                };
-              }
-            });
+                  price: parseFloat(t.lastPrice || 0),
+                  change24h: parseFloat(t.priceChangePercent || 0),
+                  volume24hUsdt: parseFloat(t.quoteVolume || 0),
+                  high24h: parseFloat(t.highPrice || 0),
+                  low24h: parseFloat(t.lowPrice || 0)
+                }));
+            }
           }
         } catch (e) {
-          console.warn('Fallback ticker fetch error:', e.message);
+          console.warn('Fallback spot ticker error:', e.message);
         }
+      }
+
+      if (!this.moversEngine) {
+        this.moversEngine = (typeof MoversEngine !== 'undefined') ? new MoversEngine() : null;
       }
 
       if (!this.moversEngine) {
@@ -5952,7 +5969,7 @@ class ScalperApp {
         return;
       }
 
-      const evalResults = this.moversEngine.evaluateMarket(tickerMap);
+      const evalResults = this.moversEngine.evaluateMarket(coinList);
       const topGainers = evalResults.topGainers.slice(0, 10);
       const topLosers = evalResults.topLosers.slice(0, 10);
 
@@ -5972,16 +5989,19 @@ class ScalperApp {
 
         return `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); font-size:11px;" class="movers-row" data-symbol="${coin.symbol}">
-            <td style="padding:6px; font-weight:800; color:#fff;">${coin.symbol}</td>
+            <td style="padding:6px; font-weight:800; color:#fff;">
+              <div>${coin.symbol}</div>
+              <div style="font-size:9.5px; font-weight:700; color:${coin.change24h >= 0 ? '#00e676' : '#ff3b30'}; font-family:var(--font-mono);">${coin.change24h >= 0 ? '+' : ''}${coin.change24h.toFixed(2)}%</div>
+            </td>
             <td style="padding:6px;"><span style="color:${scoreColor}; font-weight:900;">${coin.score}</span></td>
             <td style="padding:6px;"><span style="background:rgba(255,255,255,0.05); color:${stageColor}; border:1px solid ${stageColor}; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800;">${coin.stage}</span></td>
             <td style="padding:6px;"><span style="color:${riskColor}; font-weight:900;">${coin.riskGrade}</span></td>
-            <td style="padding:6px; color:var(--text-secondary);">${coin.rvol}x</td>
+            <td style="padding:6px; color:var(--text-secondary);">${(coin.rvol || 1).toFixed(1)}x</td>
             <td style="padding:6px; color:${isGainer ? '#00e676' : '#ff3b30'}; font-weight:700;">${coin.takerPct}% ${isGainer ? 'Buy' : 'Sell'}</td>
             <td style="padding:6px; color:${coin.oiChangePct >= 0 ? '#00e676' : '#ff3b30'}; font-weight:700;">${coin.oiChangePct >= 0 ? '+' : ''}${coin.oiChangePct}%</td>
             <td style="padding:6px;">
               <button class="movers-trade-btn" data-symbol="${coin.symbol}" data-side="${isGainer ? 'LONG' : 'SHORT'}" style="background:${isGainer ? 'rgba(0,230,118,0.15)' : 'rgba(255,59,48,0.15)'}; color:${isGainer ? '#00e676' : '#ff3b30'}; border:1px solid ${isGainer ? 'rgba(0,230,118,0.4)' : 'rgba(255,59,48,0.4)'}; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:800; cursor:pointer;">
-                CHART
+                PLAN
               </button>
             </td>
           </tr>
@@ -6023,10 +6043,11 @@ class ScalperApp {
   async openTradePlanFromMovers(symbol, side = 'LONG') {
     this.symbol = symbol;
     this.switchSubnavTab('chart');
+    await this.switchPair(symbol);
     await this.loadSymbol(symbol);
 
-    const curPrice = this.bars && this.bars.length > 0 ? this.bars[this.bars.length - 1].close : 100;
-    const atr = (this.engine && typeof this.engine.calculateATR === 'function') ? this.engine.calculateATR(this.bars, 14) : curPrice * 0.01;
+    const curPrice = this.bars && this.bars.length > 0 ? this.bars[this.bars.length - 1].close : (this.livePrices[symbol]?.price || 100);
+    const atr = (this.engine && typeof this.engine.calculateATR === 'function') ? this.engine.calculateATR(this.bars, 14) : curPrice * 0.012;
 
     const slDistance = Math.min(2.5 * atr, curPrice * 0.02);
     const sl = side === 'LONG' ? curPrice - slDistance : curPrice + slDistance;
@@ -6034,10 +6055,36 @@ class ScalperApp {
     const tp2 = side === 'LONG' ? curPrice + (2.0 * slDistance) : curPrice - (2.0 * slDistance);
     const tp3 = side === 'LONG' ? curPrice + (3.0 * slDistance) : curPrice - (3.0 * slDistance);
 
-    const equity = (this.account && this.account.equity) ? this.account.equity : 10000;
-    const riskAmount = equity * 0.01;
-    const posQty = (riskAmount / Math.max(0.0001, slDistance)).toFixed(4);
-    const recLeverage = Math.min(10, Math.max(5, Math.ceil(1 / Math.max(0.001, atr / curPrice))));
+    const decimalsVal = curPrice < 0.0001 ? 8 : (curPrice < 0.01 ? 6 : (curPrice < 1 ? 4 : (curPrice < 10 ? 3 : 2)));
+    const sigObj = {
+      symbol,
+      dir: side,
+      type: side === 'LONG' ? 'BUY' : 'SELL',
+      entry: curPrice,
+      price: curPrice,
+      sl,
+      tp1,
+      tp2,
+      tp3,
+      score: 85,
+      score100: 85,
+      decimals: decimalsVal,
+      timeframe: '5m',
+      reasons: ['Market Movers Pre-Breakout Setup', `${side} early compression breakout (Min 1:2 R:R)`]
+    };
+
+    if (!this.activeSignalBySymbol) this.activeSignalBySymbol = {};
+    this.activeSignalBySymbol[symbol] = sigObj;
+    this.activeSignal = sigObj;
+    this.updateHeroBanner(sigObj);
+    this.renderTradingViewRiskRewardBox(sigObj);
+
+    if (this.dom.dock && this.dom.dock.slInput) {
+      this.dom.dock.enableTpsl.checked = true;
+      this.dom.dock.tpslContainer.style.display = 'block';
+      this.dom.dock.slInput.value = Number(sl).toFixed(decimalsVal);
+      this.dom.dock.tpInput.value = Number(tp2).toFixed(decimalsVal);
+    }
 
     this.showToast(`📊 Trade Plan Loaded for ${symbol}: ${side} @ $${curPrice.toFixed(2)} | SL: $${sl.toFixed(2)} | TP2: $${tp2.toFixed(2)} (Min 1:2 R:R)`, 'info');
   }
