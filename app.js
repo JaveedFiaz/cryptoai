@@ -5074,28 +5074,40 @@ class ScalperApp {
     }
     const now = Date.now();
 
-    // 0. Check Overall Bitcoin Market Regime & Active 5m Impulse
+    // 0. Check Overall Bitcoin Market Regime & Active 5m/15m Trend
     let btcTrend = 'NEUTRAL';
     let isBtcDumping = false;
     let isBtcPumping = false;
     try {
-      const btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=5m&limit=50`);
+      const btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=5m&limit=60`);
       if (btcRes.ok) {
         const btcKlines = await btcRes.json();
-        if (Array.isArray(btcKlines) && btcKlines.length >= 30) {
+        if (Array.isArray(btcKlines) && btcKlines.length >= 36) {
           const btcCloses = btcKlines.map(k => parseFloat(k[4]));
           const btcEma20 = this.calcEMA(btcCloses, 20);
+          const btcEma50 = this.calcEMA(btcCloses, 50);
           const btcLatest = btcCloses[btcCloses.length - 1];
           const btcRef = btcCloses[btcCloses.length - 6] || btcCloses[0];
           const btcMovePct = ((btcLatest - btcRef) / btcRef) * 100;
 
-          if (btcLatest < btcEma20 || btcMovePct <= -0.20) {
+          // 15m Resampled EMA20
+          const btc15mCloses = [];
+          for (let i = 2; i < btcCloses.length; i += 3) {
+            btc15mCloses.push(btcCloses[i]);
+          }
+          const btc15mEma20 = this.calcEMA(btc15mCloses, 20);
+
+          // Bearish Regime: BTC below 5m EMA20 with negative momentum OR below 15m EMA20
+          if ((btcLatest < btcEma20 && btcMovePct <= -0.10) || (btc15mEma20 && btcLatest < btc15mEma20) || btcMovePct <= -0.35) {
             isBtcDumping = true;
             btcTrend = 'BEARISH';
           }
-          if (btcLatest > btcEma20 || btcMovePct >= 0.20) {
+          // Bullish Regime: BTC above 5m EMA20, 5m EMA50, and 15m EMA20 with positive momentum
+          else if (btcLatest > btcEma20 && btcLatest > btcEma50 && (!btc15mEma20 || btcLatest > btc15mEma20) && btcMovePct >= 0.10) {
             isBtcPumping = true;
             btcTrend = 'BULLISH';
+          } else {
+            btcTrend = 'NEUTRAL';
           }
         }
       }
@@ -5189,10 +5201,12 @@ class ScalperApp {
             const isTp2Hit = isLong ? (curHigh >= cached.tp2) : (curLow <= cached.tp2);
             const isTp1Hit = isLong ? (curHigh >= cached.tp1) : (curLow <= cached.tp1);
 
-            // Responsive SL Check: Checks live low/high extremes as well as candle close to protect capital
-            const isSlHit = isLong 
-              ? (curLow <= cached.sl || confirmedBar.close <= cached.sl)
-              : (curHigh >= cached.sl || confirmedBar.close >= cached.sl);
+            // Responsive SL Check: Only triggers if trade entry was actually filled, preventing phantom stops
+            const isSlHit = cached.entryFilled && (
+              isLong 
+                ? (curLow <= cached.sl || confirmedBar.close <= cached.sl)
+                : (curHigh >= cached.sl || confirmedBar.close >= cached.sl)
+            );
 
             const pnlPct = isLong 
               ? ((curClose - cached.entry) / cached.entry) * 100
@@ -5249,15 +5263,17 @@ class ScalperApp {
               }
             }
 
-            // Expire pending limit entries if unfilled after 45 mins (2700000ms)
-            if (!cached.entryFilled && (now - (cached.time || 0)) > 2700000) {
+            // Expire pending limit entries if unfilled after 30 mins
+            if (!cached.entryFilled && (now - (cached.time || 0)) > 1800000) {
               delete this.memeSignalsCache[symbol];
               this.saveMemeCache();
               return null;
             }
 
-            // Keep completed/SL cards on screen for 2 hours (7200000ms) for 100% UI transparency
-            if ((cached.status === 'SL_HIT' && (now - (cached.slHitTime || now)) > 7200000) || ((now - (cached.time || 0)) > 14400000)) {
+            // Clear stopped out cards after 10 mins (600000ms) or expired trades after 2h
+            if ((cached.status === 'SL_HIT' && (now - (cached.slHitTime || now)) > 600000) || 
+                (cached.status === 'EXIT_BREAKEVEN' && (now - (cached.slHitTime || now)) > 600000) ||
+                ((now - (cached.time || 0)) > 7200000)) {
               delete this.memeSignalsCache[symbol];
               this.saveMemeCache();
               return null;
@@ -5391,25 +5407,37 @@ class ScalperApp {
             entry = (dir === 'LONG') ? (ema20 || (confirmedBar.close - candleRange * 0.2)) : (ema20 || (confirmedBar.close + candleRange * 0.2));
           }
 
-          // Structure SL: Placed safely beyond actual 20-candle Swing Low (LONG) or Swing High (SHORT)
+          // Structure SL: Placed beyond 20-candle Swing Low (LONG) or Swing High (SHORT)
           const swingLow20 = Math.min(...candles.slice(-22, -2).map(c => c.low));
           const swingHigh20 = Math.max(...candles.slice(-22, -2).map(c => c.high));
 
-          // Stop Loss: Structure swing buffered by ATR, strictly capped at 2.5x ATR maximum
-          const sl = (dir === 'LONG')
-            ? Math.max(swingLow20 - (atr * 0.5), entry - (atr * 2.5))
-            : Math.min(swingHigh20 + (atr * 0.5), entry + (atr * 2.5));
-          const risk = Math.max(Math.abs(entry - sl), atr * 0.8);
-          // High-Win-Rate Quant Targets: TP1 1.0R (bank profit & lock BE), TP2 2.0R, TP3 3.0R runner
-          const tp1 = (dir === 'SHORT') ? entry - (risk * 1.0) : entry + (risk * 1.0);
-          const tp2 = (dir === 'SHORT') ? entry - (risk * 2.0) : entry + (risk * 2.0);
-          const tp3 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
+          // Robust SL Calculation:
+          // 1. Must clear market noise (minimum 1.2x ATR AND minimum 1.0% price distance)
+          // 2. Capped at 2.5x ATR maximum to keep risk controlled
+          const rawSlDist = (dir === 'LONG')
+            ? Math.max(entry - swingLow20 + (atr * 0.5), atr * 1.2)
+            : Math.max(swingHigh20 - entry + (atr * 0.5), atr * 1.2);
 
-          // 7. LATE ENTRY GUARD
+          const minSlPctDist = entry * 0.010; // Minimum 1.0% stop to protect against normal sub-percent noise
+          const maxSlDist = atr * 2.5;
+          const slDistance = Math.min(Math.max(rawSlDist, minSlPctDist), maxSlDist);
+
+          const sl = (dir === 'LONG') ? entry - slDistance : entry + slDistance;
+          const risk = slDistance;
+
+          // Positive Asymmetric Risk:Reward:
+          // TP1: 1.5R (Lock partial profit & move SL to breakeven)
+          // TP2: 2.5R (Main structural profit target)
+          // TP3: 4.0R (Runner)
+          const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
+          const tp2 = (dir === 'SHORT') ? entry - (risk * 2.5) : entry + (risk * 2.5);
+          const tp3 = (dir === 'SHORT') ? entry - (risk * 4.0) : entry + (risk * 4.0);
+
+          // 7. LATE ENTRY GUARD: Do not enter if price already covered more than 50% of the move to TP1
           const distToTp1 = Math.abs(latestBar.close - tp1);
           const distToEntry = Math.abs(latestBar.close - entry);
-          if (distToTp1 < (distToEntry * 0.8)) {
-            return null; // Reject late entries
+          if (distToTp1 < distToEntry) {
+            return null; // Reject chase / late entries
           }
 
           // 8. DYNAMIC 100-POINT CONFLUENCE SCORE (HONEST: No artificial base)
@@ -5437,9 +5465,9 @@ class ScalperApp {
 
           score = Math.min(99, Math.max(0, Math.round(score)));
 
-          // Dynamic Confluence Cutoff Gate based on Active Engine Mode
+          // Dynamic Confluence Cutoff Gate based on Active Engine Mode (Higher bar for higher win-rate)
           const isSniperMode = (this.activeEngineMode === 'sniper');
-          const minScoreThreshold = isSniperMode ? 88 : 78;
+          const minScoreThreshold = isSniperMode ? 90 : 82;
           if (score < minScoreThreshold) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
@@ -5548,7 +5576,7 @@ class ScalperApp {
         return (b.volRatio || 1) - (a.volRatio || 1);
       });
 
-      const maxCandidates = (this.activeEngineMode === 'sniper') ? 2 : 4;
+      const maxCandidates = (this.activeEngineMode === 'sniper') ? 2 : 3;
       const topCandidates = candidateSetups.slice(0, maxCandidates);
 
       // ALWAYS PIN ACTIVE OPEN TRADES FIRST, followed by top candidate setups!
@@ -5800,9 +5828,16 @@ class ScalperApp {
               <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
             </div>
 
-            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:linear-gradient(135deg, ${dirColor}, #10141f); border:1px solid ${dirColor}; color:#fff; cursor:pointer; border-radius:6px; font-size:12px;">
-              📊 View Chart &amp; Plan Order
-            </button>
+            <div style="display:flex; gap:6px;">
+              <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="flex:1; height:38px; font-weight:800; background:linear-gradient(135deg, ${dirColor}, #10141f); border:1px solid ${dirColor}; color:#fff; cursor:pointer; border-radius:6px; font-size:12px;">
+                📊 View Chart &amp; Plan Order
+              </button>
+              ${item.status === 'SL_HIT' || item.status === 'EXIT_BREAKEVEN' || item.shouldExit ? `
+                <button class="btn-dismiss-card" data-symbol="${item.symbol}" style="padding:0 12px; height:38px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:var(--text-muted); cursor:pointer; border-radius:6px; font-size:11px; font-weight:700;" title="Dismiss trade card">
+                  ✕ Clear
+                </button>
+              ` : ''}
+            </div>
           `;
         } else {
           cardContentHtml = `
@@ -5835,9 +5870,16 @@ class ScalperApp {
               <div><span style="color:var(--text-muted);">TP2:</span> <b style="color:#00e676;">${fmtVal(item.tp2)}</b></div>
               <div><span style="color:var(--text-muted);">TP3:</span> <b style="color:#00e676;">${fmtVal(item.tp3)}</b></div>
             </div>
-            <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="width:100%; height:38px; font-weight:800; background:${isTopPick ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
-              ${isTopPick ? '📊 View Highest Ranked Setup' : '📊 View Chart & Setup'}
-            </button>
+            <div style="display:flex; gap:6px;">
+              <button class="btn-primary trade-meme-btn" data-symbol="${item.symbol}" style="flex:1; height:38px; font-weight:800; background:${isTopPick ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : `linear-gradient(135deg, ${dirColor}, #10141f)`}; border:1px solid ${isTopPick ? '#ffd700' : dirColor}; color:${isTopPick ? '#000' : '#fff'}; cursor:pointer;">
+                ${isTopPick ? '📊 View Highest Ranked Setup' : '📊 View Chart & Setup'}
+              </button>
+              ${item.status === 'SL_HIT' || item.status === 'EXIT_BREAKEVEN' || item.shouldExit ? `
+                <button class="btn-dismiss-card" data-symbol="${item.symbol}" style="padding:0 12px; height:38px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:var(--text-muted); cursor:pointer; border-radius:6px; font-size:11px; font-weight:700;" title="Dismiss trade card">
+                  ✕ Clear
+                </button>
+              ` : ''}
+            </div>
           `;
         }
         const cardInnerHtml = cardContentHtml;
@@ -5851,6 +5893,16 @@ class ScalperApp {
               const sym = cardEl.dataset.cardSymbol || btn.getAttribute('data-symbol') || item.symbol;
               const tf = (cardEl._memeSetup && cardEl._memeSetup.timeframe) ? cardEl._memeSetup.timeframe : '5m';
               await this.selectAndOpenTradeChart(sym, tf, cardEl._memeSetup);
+            };
+          }
+          const dismissBtn = cardEl.querySelector('.btn-dismiss-card');
+          if (dismissBtn) {
+            dismissBtn.onclick = (e) => {
+              e.stopPropagation();
+              const sym = cardEl.dataset.cardSymbol || dismissBtn.getAttribute('data-symbol') || item.symbol;
+              delete this.memeSignalsCache[sym];
+              this.saveMemeCache();
+              cardEl.remove();
             };
           }
         };
