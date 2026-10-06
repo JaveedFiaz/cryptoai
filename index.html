@@ -110,8 +110,8 @@
        ======================================================================== -->
   <nav class="terminal-subnav">
     <button class="subnav-tab active" data-tab="terminal">🎯 TRADE SIGNALS</button>
-    <button class="subnav-tab" data-tab="memecoins">📊 VOLUME &amp; FLOW SCANNER</button>
-    <button class="subnav-tab" data-tab="movers">⚡ MARKET MOVERS</button>
+    <button class="subnav-tab" data-tab="memecoins">⚡ BIG MOVES (PRE-BREAKOUT)</button>
+    <button class="subnav-tab" data-tab="movers">📊 MARKET MOVERS</button>
     <button class="subnav-tab" data-tab="chart">📈 LIVE CHART &amp; TERMINAL</button>
   </nav>
 
@@ -582,22 +582,22 @@
   </div> <!-- /tab-chart -->
 
   <!-- ========================================================================
-       TAB PANE 2: VOLUME & FLOW SCANNER
+       TAB PANE 2: BIG MOVES (PRE-BREAKOUT RADAR)
        ======================================================================== -->
   <div id="tab-memecoins" class="tab-pane" style="display:none; padding:16px;">
     <div class="panel-header-bar">
       <div class="panel-title-group">
-        <span class="panel-main-title">📊 Volume &amp; Order Flow Scanner</span>
-        <span class="panel-subtitle">Monitors volume surges, open interest shifts, and taker buy/sell ratios with risk-managed entry and target levels.</span>
+        <span class="panel-main-title">⚡ Big Moves Radar (Pre-Breakout Coiled Squeeze)</span>
+        <span class="panel-subtitle">Scans for coiled spring consolidation with Open Interest and Order Flow buildup to enter BEFORE explosive breakouts.</span>
       </div>
       <div class="panel-actions">
-        <span class="status-pill online" id="memecoin-status">● SCANNER ACTIVE</span>
-        <button class="ctrl-btn refresh-btn" id="memecoin-refresh-btn">🔄 Refresh Scanner</button>
+        <span class="status-pill online" id="memecoin-status">● SCANNER ACTIVE (BIG MOVES)</span>
+        <button class="ctrl-btn refresh-btn" id="memecoin-refresh-btn">🔄 Refresh Big Moves</button>
       </div>
     </div>
     
     <div class="scanner-cards-grid" id="whale-gainers-cards-container">
-      <div class="loading-state-box">Scanning markets for volume shifts and order flow imbalances...</div>
+      <div class="loading-state-box">Scanning markets for coiled setups before breakout...</div>
     </div>
   </div>
 
@@ -890,16 +890,16 @@
       <span class="mobile-nav-icon">🎯</span>
       <span class="mobile-nav-label">Trades</span>
     </button>
-    <button class="mobile-nav-btn" data-mobile-tab="movers">
+    <button class="mobile-nav-btn" data-mobile-tab="memecoins">
       <span class="mobile-nav-icon">⚡</span>
+      <span class="mobile-nav-label">Big Moves</span>
+    </button>
+    <button class="mobile-nav-btn" data-mobile-tab="movers">
+      <span class="mobile-nav-icon">📊</span>
       <span class="mobile-nav-label">Movers</span>
     </button>
-    <button class="mobile-nav-btn" data-mobile-tab="memecoins">
-      <span class="mobile-nav-icon">📊</span>
-      <span class="mobile-nav-label">Scanner</span>
-    </button>
     <button class="mobile-nav-btn" data-mobile-tab="chart">
-      <span class="mobile-nav-icon">📊</span>
+      <span class="mobile-nav-icon">📈</span>
       <span class="mobile-nav-label">Chart</span>
     </button>
   </nav>

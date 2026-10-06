@@ -5006,7 +5006,7 @@ class ScalperApp {
     }
 
     const catTitle = this.activeMemeCategory === 'bigmoves'
-      ? 'VOLUME & FLOW'
+      ? 'BIG MOVES'
       : (this.activeMemeCategory === 'highcap' ? 'HIGH CAP' : 'MEME COINS');
 
     if (statusPill) {
