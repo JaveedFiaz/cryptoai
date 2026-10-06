@@ -5222,10 +5222,33 @@ class ScalperApp {
             cached.isWhaleDistributing = (orderFlowBuyPct <= 42.0);
 
             // Flag hostile flow when market orders aggressively oppose the position
+            // Severe opposing flow: >= 60% opposing the direction
             const isHostileFlow = isLong ? (orderFlowBuyPct < 45.0) : (orderFlowBuyPct > 55.0);
+            const isSevereHostileFlow = isLong ? (orderFlowBuyPct <= 38.0) : (orderFlowBuyPct >= 62.0);
             cached.isHostileFlow = isHostileFlow;
             if (isHostileFlow && cached.isPrimeTrade) {
               cached.isPrimeTrade = false; // Strip Prime badge if orderflow breaks
+            }
+
+            // AUTO-CANCEL UNFILLED LIMIT ORDERS IF ORDERFLOW REVERSES AGAINST THE TRADE:
+            // Prevents entering a trade when aggressive market orders are charging in the opposite direction
+            if (!cached.entryFilled && (isSevereHostileFlow || isHostileFlow)) {
+              delete this.memeSignalsCache[symbol];
+              this.saveMemeCache();
+              return null; // Instantly purge invalidated setup from the screen
+            }
+
+            // If trade is filled but hostile flow emerges, slash the confluence score immediately
+            // and trigger an urgent protective exit advisory
+            if (cached.entryFilled && isHostileFlow) {
+              if (cached.score > 45) {
+                cached.score = Math.min(45, Math.round(cached.score * 0.5));
+              }
+              if (isSevereHostileFlow) {
+                cached.shouldExit = true;
+                const opposedSide = isLong ? 'Aggressive Selling' : 'Aggressive Buying';
+                cached.exitReason = `Opposing Flow Invalidation (${opposedSide})`;
+              }
             }
 
             // Target Priority Hierarchy
@@ -5683,9 +5706,11 @@ class ScalperApp {
             </div>
           `;
         } else if (item.isPreBreakoutBigMove) {
+          const dirBannerColor = item.dir === 'LONG' ? 'linear-gradient(90deg, #00e676, #00b0ff)' : 'linear-gradient(90deg, #ff3b30, #ff9100)';
+          const dirBannerTitle = item.dir === 'LONG' ? '📈 LONG BREAKOUT SETUP' : '📉 SHORT BREAKOUT SETUP';
           topPickBannerHtml = `
-            <div style="background:linear-gradient(90deg, #00f2fe, #4facfe); color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
-              📊 RANGE COMPRESSION SETUP (${item.projectedMove || 'TP1 / TP2'})
+            <div style="background:${dirBannerColor}; color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
+              ${dirBannerTitle} (${item.projectedMove || 'TP1 / TP2'})
             </div>
           `;
         }
@@ -5693,7 +5718,8 @@ class ScalperApp {
         let whaleBadge = '';
         if (item.isHostileFlow) {
           const opposedPct = item.dir === 'LONG' ? (100 - (item.orderFlowBuyPct || 50)) : (item.orderFlowBuyPct || 50);
-          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.25); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">⚠️ OPPOSING FLOW (${opposedPct.toFixed(0)}% Selling)</span>`;
+          const opposedSide = item.dir === 'LONG' ? 'Selling' : 'Buying';
+          whaleBadge = `<span class="setup-badge" style="background:rgba(255,59,48,0.25); color:#ff3b30; font-weight:800; border:1px solid #ff3b30;">⚠️ OPPOSING FLOW (${opposedPct.toFixed(0)}% ${opposedSide})</span>`;
         } else if (item.isWhaleAccumulating && (item.orderFlowBuyPct || 50) >= 58.0) {
           whaleBadge = `<span class="setup-badge" style="background:rgba(0,230,118,0.2); color:#00e676; font-weight:800; border:1px solid #00e676;">🟢 BUYER FLOW (${(item.orderFlowBuyPct || 50).toFixed(0)}% Buy)</span>`;
         } else if (item.isWhaleDistributing && (item.orderFlowBuyPct || 50) <= 42.0) {
