@@ -5037,13 +5037,8 @@ class ScalperApp {
       'OPUSDT', 'FETUSDT', 'TAOUSDT', 'INJUSDT', 'TIAUSDT'
     ];
 
-    const preBreakoutMovers = [
-      'VIRTUALUSDT', 'AI16ZUSDT', 'CHILLGUYUSDT', 'GRASSUSDT', 'SPXUSDT',
-      'FARTCOINUSDT', 'MELANIAUSDT', '1000CATUSDT', 'MAJORUSDT', 'HIPPOUSDT',
-      'LUCEUSDT', 'DOGUSDT', 'RENDERUSDT', 'ONDOUSDT', 'WLDUSDT', 'JUPUSDT'
-    ];
-
-    let dynamicTopGainers = [];
+    let dynamicCoiledMovers = [];
+    let dynamicSurgeMovers = [];
     const tickerMap24h = {};
     try {
       const tickerRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr`);
@@ -5057,11 +5052,31 @@ class ScalperApp {
               tickerMap24h[t.symbol] = { change24h: chg, volume24h: vol };
             }
           });
-          const existingSet = new Set([...memeSymbols, ...highCapSymbols]);
-          dynamicTopGainers = tickers
-            .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume || 0) > 20000000 && !existingSet.has(t.symbol))
-            .sort((a, b) => parseFloat(b.priceChangePercent || 0) - parseFloat(a.priceChangePercent || 0))
+
+          // Non-crypto traditional stock symbols on Binance Futures
+          const nonCryptoSymbols = new Set(['SPYUSDT','QQQUSDT','AAPLUSDT','GOOGLUSDT','TSLAUSDT','METAUSDT','NVDAUSDT','MSFTUSDT','AMZNUSDT','XAUUSDT','XAGUSDT','XAUTUSDT']);
+          const liquidCrypto = tickers
+            .filter(t => t.symbol && t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume || 0) > 15000000 && !nonCryptoSymbols.has(t.symbol))
+            .map(t => {
+              const high = parseFloat(t.highPrice || 0);
+              const low = parseFloat(t.lowPrice || 0);
+              const last = parseFloat(t.lastPrice || 0);
+              const rangePct = last > 0 ? ((high - low) / last) * 100 : 999;
+              return { symbol: t.symbol, rangePct, vol: parseFloat(t.quoteVolume || 0), change24h: parseFloat(t.priceChangePercent || 0) };
+            });
+
+          // 1. Most coiled pairs: tightest 24h range (energy coiling like a spring BEFORE the breakout)
+          dynamicCoiledMovers = liquidCrypto
+            .slice()
+            .sort((a, b) => a.rangePct - b.rangePct)
             .slice(0, 15)
+            .map(t => t.symbol);
+
+          // 2. High volume breakout momentum movers
+          dynamicSurgeMovers = liquidCrypto
+            .slice()
+            .sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h))
+            .slice(0, 10)
             .map(t => t.symbol);
         }
       }
@@ -5069,12 +5084,12 @@ class ScalperApp {
 
     let targetSymbols = [...highCapSymbols, ...memeSymbols];
     if (this.activeView === 'memecoins' || this.activeMemeCategory === 'bigmoves') {
-      const heavyHighCapCoins = new Set(highCapSymbols);
-      targetSymbols = Array.from(new Set([...preBreakoutMovers, ...dynamicTopGainers])).filter(s => !heavyHighCapCoins.has(s));
+      targetSymbols = Array.from(new Set([...dynamicCoiledMovers, ...dynamicSurgeMovers, ...memeSymbols]));
     }
     const now = Date.now();
 
     // 0. Check Overall Bitcoin Market Regime & Active 5m/15m Trend
+    // REALISTIC: Do not panic-flag dump on a tiny -0.10% BTC fluctuation (which forced 100% short signals)
     let btcTrend = 'NEUTRAL';
     let isBtcDumping = false;
     let isBtcPumping = false;
@@ -5090,20 +5105,13 @@ class ScalperApp {
           const btcRef = btcCloses[btcCloses.length - 6] || btcCloses[0];
           const btcMovePct = ((btcLatest - btcRef) / btcRef) * 100;
 
-          // 15m Resampled EMA20
-          const btc15mCloses = [];
-          for (let i = 2; i < btcCloses.length; i += 3) {
-            btc15mCloses.push(btcCloses[i]);
-          }
-          const btc15mEma20 = this.calcEMA(btc15mCloses, 20);
-
-          // Bearish Regime: BTC below 5m EMA20 with negative momentum OR below 15m EMA20
-          if ((btcLatest < btcEma20 && btcMovePct <= -0.10) || (btc15mEma20 && btcLatest < btc15mEma20) || btcMovePct <= -0.35) {
+          // Genuine Bearish Market Dump: BTC dropping >= 0.60% or below EMA50 with >= -0.35% drop
+          if (btcMovePct <= -0.60 || (btcLatest < btcEma50 && btcMovePct <= -0.35)) {
             isBtcDumping = true;
             btcTrend = 'BEARISH';
           }
-          // Bullish Regime: BTC above 5m EMA20, 5m EMA50, and 15m EMA20 with positive momentum
-          else if (btcLatest > btcEma20 && btcLatest > btcEma50 && (!btc15mEma20 || btcLatest > btc15mEma20) && btcMovePct >= 0.10) {
+          // Genuine Bullish Market Pump: BTC expanding >= +0.60% or above EMA50 with >= +0.35% pump
+          else if (btcMovePct >= 0.60 || (btcLatest > btcEma50 && btcMovePct >= 0.35)) {
             isBtcPumping = true;
             btcTrend = 'BULLISH';
           } else {
@@ -5327,181 +5335,169 @@ class ScalperApp {
           const atr = sumRange / 15;
           const squeezeRatio = (atr / confirmedBar.close) * 100;
 
-          // Pre-Breakout Alert: Volatility Squeeze + Orderflow Imbalance
-          const isBigMoveBrewing = (squeezeRatio < 0.75) && (orderFlowBuyPct >= 62.0 || orderFlowBuyPct <= 38.0 || volRatio >= 1.35);
-          const isWhaleAccumulating = isBigMoveBrewing && (orderFlowBuyPct >= 62.0);
-          const isWhaleDistributing = isBigMoveBrewing && (orderFlowBuyPct <= 38.0);
+          // 3. True Volatility Squeeze & Range Compression Evaluation (The Coiled Spring)
+          const range20High = Math.max(...candles.slice(-22, -2).map(c => c.high));
+          const range20Low = Math.min(...candles.slice(-22, -2).map(c => c.low));
+          const range20SpanPct = (range20High > range20Low && confirmedBar.close > 0)
+            ? ((range20High - range20Low) / confirmedBar.close) * 100
+            : 5.0;
+          const posInRange = (range20High > range20Low)
+            ? ((confirmedBar.close - range20Low) / (range20High - range20Low))
+            : 0.5;
 
-          // 3. OVER-EXTENSION & RESISTANCE TRAP GUARD
-          if (Math.abs(totalMovePct) > 2.5 || Math.abs(singleBarMovePct) > 1.8) {
-            return null;
-          }
+          // A coin is in a true pre-breakout squeeze if ATR is compressed (< 0.90%) AND 20-bar range is tight (< 4.2%)
+          // AND price has NOT already exploded (abs move over 25m <= 1.2%)
+          const isCoiledSqueeze = (squeezeRatio < 0.90) && (range20SpanPct <= 4.2) && (Math.abs(totalMovePct) <= 1.2);
+          const isWhaleAccumulating = (orderFlowBuyPct >= 52.0 || oiChangePct >= 0.3);
+          const isWhaleDistributing = (orderFlowBuyPct <= 48.0 || oiChangePct <= -0.3);
 
-          // Resistance & Support Boundary Check (Never buy exact local peaks or sell local bottoms)
-          const prev20High = Math.max(...candles.slice(-22, -2).map(c => c.high));
-          const prev20Low = Math.min(...candles.slice(-22, -2).map(c => c.low));
-          const distToHigh20 = Math.abs(confirmedBar.close - prev20High) / prev20High * 100;
-          const distToLow20 = Math.abs(confirmedBar.close - prev20Low) / prev20Low * 100;
-
-          // Decoupled / Independent Momentum Check:
-          // If an altcoin has EXTREME relative volume surge (RVOL >= 2.5x) and massive Taker Buy imbalance (>= 72.0%),
-          // it demonstrates strong independent momentum (moving opposite to BTC).
-          const isDecoupledBull = (volRatio >= 2.5) && (orderFlowBuyPct >= 72.0) && (totalMovePct >= 0.40);
-          const isDecoupledBear = (volRatio >= 2.5) && (orderFlowBuyPct <= 28.0) && (totalMovePct <= -0.40);
-
-          // 4. Directional Breakout Verification with Institutional Taker Orderflow (>= 62.0%) & BTC Dump Guard
-          const isBullish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct >= 0.15) && (totalMovePct <= 3.0) && (orderFlowBuyPct >= 62.0) && (distToHigh20 > 0.15) && (!isBtcDumping || isDecoupledBull);
-          const isBearish = (volRatio >= 1.25 || isBigMoveBrewing) && (totalMovePct <= -0.15) && (totalMovePct >= -3.0) && (orderFlowBuyPct <= 38.0) && (distToLow20 > 0.15) && (!isBtcPumping || isDecoupledBear);
-
-          const dir = isBullish ? 'LONG' : (isBearish ? 'SHORT' : 'NEUTRAL');
-          if (dir === 'NEUTRAL') return null;
-
-          // 5. MULTI-TIMEFRAME CONFLUENCE (1h + 15m + 5m Triple EMA Alignment)
-          const isEmaAligned = isBullish 
-            ? (ema20 && ema50 && confirmedBar.close > ema20 && ema20 > ema50 && (!ema100 || confirmedBar.close > ema100))
-            : (ema20 && ema50 && confirmedBar.close < ema20 && ema20 < ema50 && (!ema100 || confirmedBar.close < ema100));
-
-          if (!isEmaAligned) return null; // Reject counter-trend fakeouts
-
-          // 15m HTF Trend Alignment
-          const closes15m = [];
-          for (let i = 2; i < candles.length; i += 3) {
-            closes15m.push(candles[i].close);
-          }
-          const ema15m20 = this.calcEMA(closes15m, 20);
-          const is15mAligned = isBullish
-            ? (!ema15m20 || confirmedBar.close >= ema15m20)
-            : (!ema15m20 || confirmedBar.close <= ema15m20);
-
-          if (!is15mAligned) return null; // Reject trades against 15m HTF trend
-
-          // 1h HTF Trend Alignment (Resample 12x 5m candles)
-          const closes1h = [];
-          for (let i = 11; i < candles.length; i += 12) {
-            closes1h.push(candles[i].close);
-          }
-          const ema1h20 = this.calcEMA(closes1h, 10);
-          const is1hAligned = isBullish
-            ? (!ema1h20 || confirmedBar.close >= ema1h20)
-            : (!ema1h20 || confirmedBar.close <= ema1h20);
-
-          if (!is1hAligned) return null; // Reject trades against 1h macro trend
-
-          const isVwapAligned = isBullish
-            ? (confirmedBar.close >= currentVwap)
-            : (confirmedBar.close <= currentVwap);
-
-          if (!isVwapAligned) return null; // Reject counter-VWAP trades into institutional resistance
-
-          if (isBullish && rsi > 65) return null; // Overbought guard (prevent buying tops)
-          if (isBearish && rsi < 35) return null; // Oversold guard (prevent selling bottoms)
-
-          const bodyRatio = Math.abs(confirmedBar.close - confirmedBar.open) / (confirmedBar.high - confirmedBar.low || 1);
-          if (bodyRatio < 0.45) return null; // Reject thin doji traps (require decisive body)
-
-          // 6. Quantitative Strategy Engine Classification & Dynamic Strategy Entry Level
+          let dir = 'NEUTRAL';
           let strategyType = 'MULTI_TIMEFRAME_MOMENTUM';
           let strategyLabel = 'Trend Continuation';
-
-          if (engineAnalysis && engineAnalysis.latest && engineAnalysis.latest.liquiditySweep && engineAnalysis.latest.liquiditySweep.isSweep) {
-            strategyType = 'LIQUIDITY_SWEEP';
-            strategyLabel = 'Liquidity Sweep & Retest';
-          } else if (distToHigh20 < 0.3 || distToLow20 < 0.3) {
-            strategyType = 'STRUCTURE_BREAKOUT';
-            strategyLabel = 'Structure Breakout';
-          } else if (isBigMoveBrewing) {
-            strategyType = 'SQUEEZE_EXPANSION';
-            strategyLabel = 'Range Compression Breakout';
-          } else if (orderFlowBuyPct >= 66 || orderFlowBuyPct <= 34) {
-            strategyType = 'ORDERFLOW_SWEEP';
-            strategyLabel = 'Taker Volume Imbalance';
-          }
-
-          const candleRange = confirmedBar.high - confirmedBar.low;
+          let isPreBreakoutBigMove = false;
           let entry = confirmedBar.close;
+          let sl = 0;
+          let risk = 0;
 
-          if (strategyType === 'LIQUIDITY_SWEEP') {
-            entry = (dir === 'LONG') ? (confirmedBar.low + atr * 0.15) : (confirmedBar.high - atr * 0.15);
-          } else if (strategyType === 'STRUCTURE_BREAKOUT') {
-            entry = (dir === 'LONG') ? prev20High : prev20Low;
-          } else if (strategyType === 'SQUEEZE_EXPANSION') {
-            entry = (dir === 'LONG') ? confirmedBar.close - (candleRange * 0.25) : confirmedBar.close + (candleRange * 0.25);
-          } else {
-            entry = (dir === 'LONG') ? (ema20 || (confirmedBar.close - candleRange * 0.2)) : (ema20 || (confirmedBar.close + candleRange * 0.2));
+          // =========================================================================
+          // BRANCH 1: COILED PRE-BREAKOUT SETUP (ENTER BEFORE THE MOVE STARTS!)
+          // =========================================================================
+          if (isCoiledSqueeze) {
+            // Pre-Boom (Long Coil): price holding upper half of range, accumulation footprint, no severe BTC crash
+            if ((posInRange >= 0.45 || confirmedBar.close >= (ema20 || confirmedBar.close)) && isWhaleAccumulating && !isBtcDumping) {
+              dir = 'LONG';
+              strategyType = 'COIL_PRE_BREAKOUT';
+              strategyLabel = '⚡ Coiled Pre-Boom Setup';
+              isPreBreakoutBigMove = true;
+              // Enter at support / EMA20 inside the coil, NOT chasing the ceiling!
+              entry = Math.min(confirmedBar.close, (ema20 || confirmedBar.close));
+              // Tight invalidation just below the coil floor (0.6% - 1.2% risk max)
+              const slDist = Math.max(entry - range20Low + (atr * 0.25), entry * 0.007);
+              risk = Math.min(slDist, entry * 0.015);
+              sl = entry - risk;
+            }
+            // Pre-Dump (Short Coil): price holding lower half of range, distribution footprint, no severe BTC pump
+            else if ((posInRange <= 0.55 || confirmedBar.close <= (ema20 || confirmedBar.close)) && isWhaleDistributing && !isBtcPumping) {
+              dir = 'SHORT';
+              strategyType = 'COIL_PRE_BREAKDOWN';
+              strategyLabel = '⚡ Coiled Pre-Dump Setup';
+              isPreBreakoutBigMove = true;
+              // Enter at resistance / EMA20 inside the coil
+              entry = Math.max(confirmedBar.close, (ema20 || confirmedBar.close));
+              // Tight invalidation just above the coil ceiling
+              const slDist = Math.max(range20High - entry + (atr * 0.25), entry * 0.007);
+              risk = Math.min(slDist, entry * 0.015);
+              sl = entry + risk;
+            }
           }
 
-          // Structure SL: Placed beyond 20-candle Swing Low (LONG) or Swing High (SHORT)
-          const swingLow20 = Math.min(...candles.slice(-22, -2).map(c => c.low));
-          const swingHigh20 = Math.max(...candles.slice(-22, -2).map(c => c.high));
+          // =========================================================================
+          // BRANCH 2: CONFIRMED MOMENTUM EXPANSION (For Active Trends That Are NOT Overextended)
+          // =========================================================================
+          if (dir === 'NEUTRAL') {
+            // Strict overextension guard: Never buy if price already moved > 1.8% in last 25m or single bar > 1.4%
+            if (Math.abs(totalMovePct) > 1.8 || Math.abs(singleBarMovePct) > 1.4) {
+              return null;
+            }
 
-          // Robust SL Calculation:
-          // 1. Must clear market noise (minimum 1.2x ATR AND minimum 1.0% price distance)
-          // 2. Capped at 2.5x ATR maximum to keep risk controlled
-          const rawSlDist = (dir === 'LONG')
-            ? Math.max(entry - swingLow20 + (atr * 0.5), atr * 1.2)
-            : Math.max(swingHigh20 - entry + (atr * 0.5), atr * 1.2);
+            const distToHigh20 = Math.abs(confirmedBar.close - range20High) / range20High * 100;
+            const distToLow20 = Math.abs(confirmedBar.close - range20Low) / range20Low * 100;
 
-          const minSlPctDist = entry * 0.010; // Minimum 1.0% stop to protect against normal sub-percent noise
-          const maxSlDist = atr * 2.5;
-          const slDistance = Math.min(Math.max(rawSlDist, minSlPctDist), maxSlDist);
+            const isDecoupledBull = (volRatio >= 2.2) && (orderFlowBuyPct >= 68.0) && (totalMovePct >= 0.35);
+            const isDecoupledBear = (volRatio >= 2.2) && (orderFlowBuyPct <= 32.0) && (totalMovePct <= -0.35);
 
-          const sl = (dir === 'LONG') ? entry - slDistance : entry + slDistance;
-          const risk = slDistance;
+            const isBullish = (volRatio >= 1.25) && (totalMovePct >= 0.15) && (orderFlowBuyPct >= 58.0) && (distToHigh20 > 0.20) && (!isBtcDumping || isDecoupledBull);
+            const isBearish = (volRatio >= 1.25) && (totalMovePct <= -0.15) && (orderFlowBuyPct <= 42.0) && (distToLow20 > 0.20) && (!isBtcPumping || isDecoupledBear);
 
-          // Positive Asymmetric Risk:Reward:
-          // TP1: 1.5R (Lock partial profit & move SL to breakeven)
-          // TP2: 2.5R (Main structural profit target)
-          // TP3: 4.0R (Runner)
+            if (isBullish) {
+              dir = 'LONG';
+            } else if (isBearish) {
+              dir = 'SHORT';
+            } else {
+              return null;
+            }
+
+            // EMA & HTF Alignment check for active trends
+            const isEmaAligned = (dir === 'LONG')
+              ? (ema20 && ema50 && confirmedBar.close >= ema20 && ema20 >= ema50)
+              : (ema20 && ema50 && confirmedBar.close <= ema20 && ema20 <= ema50);
+
+            if (!isEmaAligned) return null;
+
+            // 15m HTF Trend Alignment
+            const closes15m = [];
+            for (let i = 2; i < candles.length; i += 3) closes15m.push(candles[i].close);
+            const ema15m20 = this.calcEMA(closes15m, 20);
+            const is15mAligned = (dir === 'LONG') ? (!ema15m20 || confirmedBar.close >= ema15m20) : (!ema15m20 || confirmedBar.close <= ema15m20);
+            if (!is15mAligned) return null;
+
+            // Overbought/Oversold guards
+            if (dir === 'LONG' && rsi > 68) return null;
+            if (dir === 'SHORT' && rsi < 32) return null;
+
+            strategyType = 'TREND_EXPANSION';
+            strategyLabel = (dir === 'LONG') ? '📈 Trend Continuation' : '📉 Trend Breakdown';
+
+            // Entry for trend setups: limit at EMA20 or slight pullback of candle to avoid buying tops
+            const candleRange = confirmedBar.high - confirmedBar.low;
+            entry = (dir === 'LONG') ? (ema20 || confirmedBar.close - candleRange * 0.2) : (ema20 || confirmedBar.close + candleRange * 0.2);
+
+            const rawSlDist = (dir === 'LONG')
+              ? Math.max(entry - range20Low + (atr * 0.4), atr * 1.2)
+              : Math.max(range20High - entry + (atr * 0.4), atr * 1.2);
+            const minSlDist = entry * 0.008;
+            risk = Math.min(Math.max(rawSlDist, minSlDist), atr * 2.2);
+            sl = (dir === 'LONG') ? entry - risk : entry + risk;
+          }
+
+          if (dir === 'NEUTRAL' || !entry || !sl || risk <= 0) return null;
+
+          // Asymmetric Profit Targets (1.5R, 3.0R, 5.0R)
           const tp1 = (dir === 'SHORT') ? entry - (risk * 1.5) : entry + (risk * 1.5);
-          const tp2 = (dir === 'SHORT') ? entry - (risk * 2.5) : entry + (risk * 2.5);
-          const tp3 = (dir === 'SHORT') ? entry - (risk * 4.0) : entry + (risk * 4.0);
+          const tp2 = (dir === 'SHORT') ? entry - (risk * 3.0) : entry + (risk * 3.0);
+          const tp3 = (dir === 'SHORT') ? entry - (risk * 5.0) : entry + (risk * 5.0);
 
-          // 7. LATE ENTRY GUARD: Do not enter if price already covered more than 50% of the move to TP1
+          // LATE ENTRY GUARD: Do not enter if price already covered more than 50% of the move to TP1
           const distToTp1 = Math.abs(latestBar.close - tp1);
           const distToEntry = Math.abs(latestBar.close - entry);
           if (distToTp1 < distToEntry) {
             return null; // Reject chase / late entries
           }
 
-          // 8. DYNAMIC 100-POINT CONFLUENCE SCORE (HONEST: No artificial base)
+          // DYNAMIC 100-POINT CONFLUENCE SCORE
           let score = 0;
-          if (volRatio >= 2.5) score += 15;
-          else if (volRatio >= 1.5) score += 10;
-          else if (volRatio >= 1.0) score += 5;
-
-          if (isEmaAligned) score += 12;
-          if (is15mAligned) score += 10;
-          if (is1hAligned) score += 10;
-          if (isVwapAligned) score += 10;
-          if ((isBullish && rsi >= 45 && rsi <= 65) || (isBearish && rsi >= 35 && rsi <= 55)) score += 10;
-          if (bodyRatio >= 0.55) score += 10;
-          if (isBigMoveBrewing) score += 10;
-
-          // Orderflow score boost
-          if (isBullish && orderFlowBuyPct >= 60.0) score += 15;
-          if (isBearish && orderFlowBuyPct <= 40.0) score += 15;
+          if (isCoiledSqueeze) {
+            score += 35; // Heavy reward for identifying BEFORE the move
+            if (posInRange >= 0.50 && dir === 'LONG') score += 15;
+            if (posInRange <= 0.50 && dir === 'SHORT') score += 15;
+            if ((dir === 'LONG' && orderFlowBuyPct >= 54) || (dir === 'SHORT' && orderFlowBuyPct <= 46)) score += 20;
+            if (Math.abs(oiChangePct) >= 0.3) score += 15;
+            if (volRatio >= 1.1) score += 15;
+          } else {
+            if (volRatio >= 2.0) score += 20;
+            else if (volRatio >= 1.3) score += 12;
+            if (confirmedBar.close > ema20 && ema20 > ema50) score += 15;
+            if ((dir === 'LONG' && rsi >= 45 && rsi <= 62) || (dir === 'SHORT' && rsi >= 38 && rsi <= 55)) score += 15;
+            if (orderFlowBuyPct >= 58 || orderFlowBuyPct <= 42) score += 18;
+            if (Math.abs(oiChangePct) >= 0.5) score += 12;
+          }
 
           // Blend with ScalperEngine score if available
-          if (engineSig && engineSig.type === (isBullish ? 'BUY' : 'SELL') && engineSig.score100 > 0) {
+          if (engineSig && engineSig.type === (dir === 'LONG' ? 'BUY' : 'SELL') && engineSig.score100 > 0) {
             score = Math.round((score + engineSig.score100) / 2);
           }
 
-          score = Math.min(99, Math.max(0, Math.round(score)));
+          score = Math.min(98, Math.max(50, Math.round(score)));
 
-          // Dynamic Confluence Cutoff Gate based on Active Engine Mode (Higher bar for higher win-rate)
-          const isSniperMode = (this.activeEngineMode === 'sniper');
-          const minScoreThreshold = isSniperMode ? 90 : 82;
+          // Minimum Score Gate: 75 for coiled pre-breakouts, 82 for momentum
+          const minScoreThreshold = isCoiledSqueeze ? 75 : 82;
           if (score < minScoreThreshold) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
           const t24 = tickerMap24h[symbol] || { change24h: 0, volume24h: 0 };
           const change24h = t24.change24h;
 
-          const isParabolicMovers = (change24h >= 10.0) || (squeezeRatio < 0.70) || (volRatio >= 2.0);
-          const isTopGainer = change24h >= 15.0;
-
-          const isPreBreakoutBigMove = isBigMoveBrewing || (squeezeRatio < 1.25 && (orderFlowBuyPct >= 54 || orderFlowBuyPct <= 46 || volRatio >= 1.05)) || isParabolicMovers || score >= 78;
-          if (this.activeMemeCategory === 'bigmoves' && !isPreBreakoutBigMove) {
+          if (this.activeMemeCategory === 'bigmoves' && !isPreBreakoutBigMove && !isCoiledSqueeze) {
             return null; // In Big Moves tab, filter strictly for coiled setups before breakout
           }
 
@@ -5705,12 +5701,12 @@ class ScalperApp {
               📈 24H GAINER (${item.change24h >= 0 ? '+' : ''}${(item.change24h || 0).toFixed(1)}%)
             </div>
           `;
-        } else if (item.isPreBreakoutBigMove) {
+        } else if (item.isPreBreakoutBigMove || (item.strategyType && item.strategyType.startsWith('COIL_'))) {
           const dirBannerColor = item.dir === 'LONG' ? 'linear-gradient(90deg, #00e676, #00b0ff)' : 'linear-gradient(90deg, #ff3b30, #ff9100)';
-          const dirBannerTitle = item.dir === 'LONG' ? '📈 LONG BREAKOUT SETUP' : '📉 SHORT BREAKOUT SETUP';
+          const dirBannerTitle = item.dir === 'LONG' ? '⚡ COILED PRE-BOOM SETUP (Enter Before Move)' : '⚡ COILED PRE-DUMP SETUP (Enter Before Move)';
           topPickBannerHtml = `
             <div style="background:${dirBannerColor}; color:#000; font-weight:900; font-size:11px; padding:4px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
-              ${dirBannerTitle} (${item.projectedMove || 'TP1 / TP2'})
+              ${dirBannerTitle} • ${item.projectedMove || 'TP1 / TP2'}
             </div>
           `;
         }
@@ -5811,8 +5807,8 @@ class ScalperApp {
           const oiPct = item.oiChangePct || 0;
           const oiStatus = oiPct >= 0 ? `🟢 Rising (+${oiPct.toFixed(1)}%)` : `🔴 Falling (${oiPct.toFixed(1)}%)`;
           const roiHeading = item.dir === 'LONG'
-            ? `📈 LONG SETUP (Range Compression)`
-            : `📉 SHORT SETUP (Range Compression)`;
+            ? `📈 LONG SETUP • Coiled Spring (1:3+ R:R Potential)`
+            : `📉 SHORT SETUP • Coiled Spring (1:3+ R:R Potential)`;
           
           cardContentHtml = `
             <div style="background:linear-gradient(90deg, ${item.dir === 'LONG' ? '#00e676, #00b0ff' : '#ff3b30, #ff9100'}); color:#000; font-weight:900; font-size:11px; padding:5px 8px; border-radius:4px; text-align:center; margin-bottom:8px; letter-spacing:0.5px;">
@@ -6057,8 +6053,8 @@ class ScalperApp {
 
       if (scannedCountEl) scannedCountEl.textContent = `${evalResults.scannedCount} Pairs`;
       if (earlyCountEl) earlyCountEl.textContent = `${evalResults.earlyCount} Coiled`;
-      if (hitRateEl) hitRateEl.textContent = `67.8% (PF: 2.42)`;
-      if (expectancyEl) expectancyEl.textContent = `+0.85 R`;
+      if (hitRateEl) hitRateEl.textContent = `1 : 2.5+ R:R`;
+      if (expectancyEl) expectancyEl.textContent = `Max 1-2% Risk`;
 
       const renderRowHtml = (coin, isGainer = true) => {
         const stageColor = coin.stage === 'EARLY' ? '#00e676' : (coin.stage === 'MID' ? '#00b0ff' : (coin.stage === 'LATE' ? '#ffd700' : '#ff3b30'));
