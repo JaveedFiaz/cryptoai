@@ -4873,7 +4873,7 @@ class ScalperApp {
     // A slow network response must not overlap the next scheduled scan.
     if (this._memeScanInFlight) return;
     this._memeScanInFlight = true;
-    const container = (this.activeView === 'memecoins' || this.activeMemeCategory === 'bigmoves')
+    const container = (this.activeView === 'memecoins')
       ? (document.getElementById('whale-gainers-cards-container') || document.getElementById('memecoin-cards-container'))
       : (document.getElementById('memecoin-cards-container') || document.getElementById('whale-gainers-cards-container'));
     const refreshBtn = document.getElementById('memecoin-refresh-btn');
@@ -5364,7 +5364,7 @@ class ScalperApp {
           // =========================================================================
           if (isCoiledSqueeze) {
             // Pre-Boom (Long Coil): price holding upper half of range, accumulation footprint, no severe BTC crash
-            if ((posInRange >= 0.45 || confirmedBar.close >= (ema20 || confirmedBar.close)) && isWhaleAccumulating && !isBtcDumping) {
+            if ((posInRange >= 0.42 || orderFlowBuyPct >= 54.0) && isWhaleAccumulating && !isBtcDumping) {
               dir = 'LONG';
               strategyType = 'COIL_PRE_BREAKOUT';
               strategyLabel = '⚡ Coiled Pre-Boom Setup';
@@ -5377,7 +5377,7 @@ class ScalperApp {
               sl = entry - risk;
             }
             // Pre-Dump (Short Coil): price holding lower half of range, distribution footprint, no severe BTC pump
-            else if ((posInRange <= 0.55 || confirmedBar.close <= (ema20 || confirmedBar.close)) && isWhaleDistributing && !isBtcPumping) {
+            else if ((posInRange <= 0.58 || orderFlowBuyPct <= 46.0) && isWhaleDistributing && !isBtcPumping) {
               dir = 'SHORT';
               strategyType = 'COIL_PRE_BREAKDOWN';
               strategyLabel = '⚡ Coiled Pre-Dump Setup';
@@ -5467,19 +5467,19 @@ class ScalperApp {
           // DYNAMIC 100-POINT CONFLUENCE SCORE
           let score = 0;
           if (isCoiledSqueeze) {
-            score += 35; // Heavy reward for identifying BEFORE the move
-            if (posInRange >= 0.50 && dir === 'LONG') score += 15;
-            if (posInRange <= 0.50 && dir === 'SHORT') score += 15;
-            if ((dir === 'LONG' && orderFlowBuyPct >= 54) || (dir === 'SHORT' && orderFlowBuyPct <= 46)) score += 20;
-            if (Math.abs(oiChangePct) >= 0.3) score += 15;
-            if (volRatio >= 1.1) score += 15;
+            score = 65; // Base score for verified coiled spring before breakout
+            if (posInRange >= 0.48 && dir === 'LONG') score += 10;
+            if (posInRange <= 0.52 && dir === 'SHORT') score += 10;
+            if ((dir === 'LONG' && orderFlowBuyPct >= 53.0) || (dir === 'SHORT' && orderFlowBuyPct <= 47.0)) score += 12;
+            if (volRatio >= 1.0) score += 8;
+            if (Math.abs(oiChangePct) >= 0.2) score += 5;
           } else {
+            score = 55; // Base score for verified active trend
             if (volRatio >= 2.0) score += 20;
-            else if (volRatio >= 1.3) score += 12;
-            if (confirmedBar.close > ema20 && ema20 > ema50) score += 15;
-            if ((dir === 'LONG' && rsi >= 45 && rsi <= 62) || (dir === 'SHORT' && rsi >= 38 && rsi <= 55)) score += 15;
-            if (orderFlowBuyPct >= 58 || orderFlowBuyPct <= 42) score += 18;
-            if (Math.abs(oiChangePct) >= 0.5) score += 12;
+            else if (volRatio >= 1.25) score += 12;
+            if (confirmedBar.close > ema20 && ema20 > ema50) score += 12;
+            if ((dir === 'LONG' && rsi >= 45 && rsi <= 65) || (dir === 'SHORT' && rsi >= 35 && rsi <= 55)) score += 10;
+            if (orderFlowBuyPct >= 56 || orderFlowBuyPct <= 44) score += 10;
           }
 
           // Blend with ScalperEngine score if available
@@ -5489,8 +5489,12 @@ class ScalperApp {
 
           score = Math.min(98, Math.max(50, Math.round(score)));
 
-          // Minimum Score Gate: 75 for coiled pre-breakouts, 82 for momentum
-          const minScoreThreshold = isCoiledSqueeze ? 75 : 82;
+          // Realistic Confluence Gate: 68 for coiled pre-breakouts, 72 for momentum
+          const isSniperMode = (this.activeEngineMode === 'sniper');
+          const minScoreThreshold = isCoiledSqueeze 
+            ? (isSniperMode ? 78 : 68) 
+            : (isSniperMode ? 82 : 72);
+
           if (score < minScoreThreshold) return null;
 
           // Pre-Breakout Big Move Expansion Calculations
